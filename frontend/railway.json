@@ -4,9 +4,9 @@
         "builder": "NIXPACKS"
     },
     "deploy": {
-        "startCommand": "node_modules/.bin/serve -s build -l tcp://0.0.0.0:$PORT",
+        "startCommand": "npm run serve",
         "healthcheckPath": "/",
-        "healthcheckTimeout": 300,
+        "healthcheckTimeout": 100,
         "restartPolicyType": "ON_FAILURE"
     }
 }
