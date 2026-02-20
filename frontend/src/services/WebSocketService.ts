@@ -5,6 +5,7 @@ class WebSocketService {
   private reconnectInterval: number = 5000; // 5 seconds
   private maxReconnectAttempts: number = 10;
   private reconnectAttempts: number = 0;
+  private intentionalDisconnect: boolean = false; // prevents reconnect loop on manual disconnect
 
   // Event handlers
   private onFacialAnalysis: ((data: any) => void) | null = null;
@@ -23,7 +24,9 @@ class WebSocketService {
 
   connect(sessionId: string): Promise<boolean> {
     this.sessionId = sessionId;
-    const wsUrl = `ws://localhost:8001/ws/live-analysis/${sessionId}`;
+    // Derive WebSocket URL from the HTTP AI service URL (http→ws, https→wss)
+    const httpUrl = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const wsUrl = httpUrl.replace(/^http/, 'ws') + `/ws/live-analysis/${sessionId}`;
 
     return new Promise((resolve) => {
       try {
@@ -50,7 +53,10 @@ class WebSocketService {
           console.log('WebSocket connection closed');
           this.isConnected = false;
           this.onConnectionChange?.(false);
-          this.attemptReconnect();
+          // Only attempt reconnect for unexpected disconnections
+          if (!this.intentionalDisconnect) {
+            this.attemptReconnect();
+          }
         };
 
         this.socket.onerror = (error) => {
@@ -96,7 +102,7 @@ class WebSocketService {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
       console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
-      
+
       setTimeout(() => {
         if (this.sessionId) {
           this.connect(this.sessionId);
@@ -110,11 +116,13 @@ class WebSocketService {
 
   disconnect() {
     if (this.socket) {
+      this.intentionalDisconnect = true; // signal onclose to skip reconnect
       this.socket.close();
       this.socket = null;
       this.isConnected = false;
       this.sessionId = '';
       this.reconnectAttempts = 0;
+      this.intentionalDisconnect = false; // reset for potential future connections
     }
   }
 

@@ -91,10 +91,12 @@
     opacity: 1;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.7;
     transform: scale(1.05);
   }
+
   100% {
     opacity: 1;
     transform: scale(1);
@@ -106,6 +108,7 @@
     opacity: 0;
     transform: translate3d(0, 100%, 0);
   }
+
   to {
     opacity: 1;
     transform: translate3d(0, 0, 0);
@@ -117,6 +120,7 @@
     opacity: 0;
     transform: translate3d(100%, 0, 0);
   }
+
   to {
     opacity: 1;
     transform: translate3d(0, 0, 0);
@@ -160,6 +164,7 @@ html {
   0% {
     background-position: -468px 0;
   }
+
   100% {
     background-position: 468px 0;
   }
@@ -174,4 +179,46 @@ html {
   background: linear-gradient(to right, #eeeeee 8%, #dddddd 18%, #eeeeee 33%);
   background-size: 800px 104px;
   position: relative;
+}
+
+/* ═══════════════════════════════════════════════════════
+   LIGHT MODE — applied when body has .light-mode class
+   Only affects non-home pages (interview, report, dashboard)
+   ═══════════════════════════════════════════════════════ */
+
+/* Smooth transition ONLY inside light-mode — never globally */
+body.light-mode .MuiBox-root,
+body.light-mode .MuiPaper-root,
+body.light-mode .MuiTypography-root {
+  transition: background-color 0.3s ease, color 0.3s ease !important;
+}
+
+body.light-mode {
+  background-color: #f0f4f8 !important;
+}
+
+/* MUI surfaces */
+body.light-mode .MuiPaper-root {
+  background-color: #ffffff !important;
+  color: #1a1a2e !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-mode .MuiTypography-root:not([style*="background"]) {
+  color: #1a1a2e !important;
+}
+
+/* Glass cards (dark pages) → white cards in light mode */
+body.light-mode [style*="rgba(255,255,255,0.04)"],
+body.light-mode [style*="rgba(255, 255, 255, 0.04)"] {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Dark page backgrounds → light grey */
+body.light-mode div[style*="#060c14"],
+body.light-mode div[style*="#0a0f1e"],
+body.light-mode div[style*="0c0c14"] {
+  background: #f0f4f8 !important;
 }

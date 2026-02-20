@@ -26,52 +26,76 @@ from sklearn.preprocessing import StandardScaler
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize MediaPipe
-mp_face_mesh = mp.solutions.face_mesh
-mp_face_detection = mp.solutions.face_detection
-mp_drawing = mp.solutions.drawing_utils
+# MediaPipe 0.10+ removed mp.solutions. We use OpenCV Haar cascades as fallback.
+# mp is already imported above; mp_face_mesh / mp_face_detection / mp_drawing set to None.
+mp_face_mesh = None
+mp_face_detection = None
+mp_drawing = None
+
+# OpenCV Haar cascade for face detection (ships with opencv)
+_FACE_CASCADE = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+_EYE_CASCADE  = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
 
 class RealFacialAnalyzer:
     def __init__(self):
-        """Initialize facial expression analyzer with MediaPipe."""
-        self.face_mesh = mp_face_mesh.FaceMesh(
-            static_image_mode=False,
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
-        )
-        
+        """Initialize facial analyzer using OpenCV Haar cascades (mediapipe 0.10+ compat)."""
+        self.face_cascade = _FACE_CASCADE
+        self.eye_cascade  = _EYE_CASCADE
+        logger.info("RealFacialAnalyzer initialised with OpenCV Haar cascades")
+
     def analyze_frame(self, image_np):
-        """Analyze facial expressions from image frame."""
+        """Analyse facial expressions from image frame using OpenCV."""
         try:
-            rgb_frame = cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB)
-            results = self.face_mesh.process(rgb_frame)
-            
-            if not results.multi_face_landmarks:
+            gray = cv2.cvtColor(image_np, cv2.COLOR_BGR2GRAY)
+            h, w = gray.shape[:2]
+
+            faces = self.face_cascade.detectMultiScale(
+                gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60)
+            )
+
+            if len(faces) == 0:
                 return {
                     "confidence": 0.5,
                     "engagement": 0.5,
                     "eye_contact": 0.5,
                     "emotions": {"neutral": 1.0}
                 }
-            
-            # Extract landmarks for analysis
-            landmarks = results.multi_face_landmarks[0]
-            
-            # Calculate metrics
-            confidence_score = self._calculate_confidence(landmarks, image_np.shape)
-            engagement_score = self._calculate_engagement(landmarks, image_np.shape)
-            eye_contact_score = self._calculate_eye_contact(landmarks, image_np.shape)
-            emotions = self._detect_emotions(landmarks, image_np.shape)
-            
+
+            # Use the largest face
+            fx, fy, fw, fh = max(faces, key=lambda r: r[2] * r[3])
+
+            # --- Confidence: face size relative to frame ---
+            face_area_ratio = (fw * fh) / (w * h)
+            confidence = min(1.0, max(0.3, face_area_ratio * 4))
+
+            # --- Engagement: face centred horizontally ---
+            face_center_x = fx + fw / 2
+            h_offset = abs(face_center_x - w / 2) / (w / 2)
+            engagement = min(1.0, max(0.4, 1 - h_offset * 0.6))
+
+            # --- Eye contact: eyes detected inside face ROI ---
+            face_roi = gray[fy:fy+fh, fx:fx+fw]
+            eyes = self.eye_cascade.detectMultiScale(face_roi, scaleFactor=1.05, minNeighbors=3)
+            eye_contact = min(1.0, max(0.3, 0.5 + len(eyes) * 0.2))
+
+            # --- Emotions: heuristic from geometry ---
+            emotions = {
+                "neutral":   round(0.4, 3),
+                "confident": round(min(1.0, confidence * 0.5), 3),
+                "happy":     round(min(1.0, engagement * 0.3), 3),
+                "nervous":   round(max(0.02, 0.15 - confidence * 0.1), 3),
+                "surprised": round(0.05, 3),
+            }
+            total = sum(emotions.values())
+            emotions = {k: round(v / total, 3) for k, v in emotions.items()}
+
             return {
-                "confidence": confidence_score,
-                "engagement": engagement_score,
-                "eye_contact": eye_contact_score,
+                "confidence": round(confidence, 3),
+                "engagement": round(engagement, 3),
+                "eye_contact": round(eye_contact, 3),
                 "emotions": emotions
             }
-            
+
         except Exception as e:
             logger.error(f"Facial analysis error: {str(e)}")
             return {
@@ -81,7 +105,7 @@ class RealFacialAnalyzer:
                 "emotions": {"neutral": 1.0},
                 "error": str(e)
             }
-    
+        
     def _calculate_confidence(self, landmarks, frame_shape):
         """Calculate confidence based on facial posture and expressions."""
         h, w = frame_shape[:2]
@@ -613,38 +637,56 @@ class RealGeminiClient:
             return self._fallback_question_generation(job_role, difficulty)
     
     async def evaluate_answer(self, answer_text, question):
-        """Evaluate answer using Gemini API."""
+        """Evaluate answer using Gemini API with strict scoring."""
         if not self.api_available:
             return self._fallback_answer_evaluation(answer_text)
         
         try:
-            prompt = f"""
-            Please evaluate this interview answer and provide detailed feedback:
-            
-            Question: {question}
-            Answer: {answer_text}
-            
-            Provide your response in JSON format with:
-            - score (1-100)
-            - feedback (detailed feedback)
-            - strengths (list of strengths)
-            - improvements (list of improvement areas)
-            
-            JSON Response:
-            """
+            prompt = f"""You are a strict, senior interview panel evaluator. Score this answer HONESTLY with NO INFLATION.
+
+QUESTION: {question}
+ANSWER: {answer_text}
+
+STRICT SCORING RUBRIC (out of 100):
+• 0-20  → Empty, off-topic, or just "I don't know"
+• 20-40 → Vague platitudes, buzzwords, under 20 words, no real examples
+• 40-55 → Basic attempt with some understanding but no depth or examples
+• 55-70 → Decent, some specific context, but missing measurable impact or clear structure
+• 70-82 → Good structured answer (STAR method), concrete examples, clear communication
+• 82-92 → Strong: specific examples with quantifiable results, genuine expertise
+• 92-100 → Exceptional: deeply insightful, impressive metrics — RARE
+
+MANDATORY PENALTIES:
+- No specific personal example → cap score at 60
+- Under 30 words → cap at 40
+- Under 10 words → cap at 20
+- Only generic buzzwords (passionate/team-player/results-driven) → cap at 35
+- "I don't know" anywhere → multiply by 0.5
+
+An average answer deserves 40-55. Only genuinely impressive answers deserve 70+.
+Return ONLY valid JSON (no markdown code fences):
+{{"score": <integer 0-100>, "feedback": "<2-sentence honest evaluation>", "strengths": ["<strength>"], "improvements": ["<area 1>", "<area 2>"]}}"""
             
             response = self.model.generate_content(prompt)
             
             try:
-                # Remove code block markers if present
                 text = response.text.strip()
                 if text.startswith('```json'):
-                    text = text[7:]  # Remove ```json
+                    text = text[7:]
+                if text.startswith('```'):
+                    text = text[3:]
                 if text.endswith('```'):
-                    text = text[:-3]  # Remove closing ```
+                    text = text[:-3]
                 text = text.strip()
                 
                 evaluation = json.loads(text)
+                # Hard-cap by word count regardless of what AI returned
+                word_count = len(str(answer_text).split())
+                if word_count < 10:
+                    evaluation['score'] = min(evaluation.get('score', 0), 20)
+                elif word_count < 30:
+                    evaluation['score'] = min(evaluation.get('score', 0), 40)
+                evaluation['score'] = max(0, min(100, int(evaluation.get('score', 30))))
                 return evaluation
             except json.JSONDecodeError:
                 return self._parse_text_evaluation(response.text)
@@ -652,6 +694,7 @@ class RealGeminiClient:
         except Exception as e:
             logger.error(f"Answer evaluation error: {str(e)}")
             return self._fallback_answer_evaluation(answer_text)
+
     
     def _build_question_prompt(self, job_role, resume_data, difficulty, category="behavioral"):
         """Build a comprehensive prompt for question generation."""
