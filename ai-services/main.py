@@ -6,6 +6,7 @@ from routes import register_routes, ConnectionManager
 import json
 import asyncio
 import logging
+from datetime import datetime
 
 # Load environment variables from .env file
 load_dotenv()
@@ -13,6 +14,17 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="AI Interview Prep AI Services")
+
+@app.get("/")
+async def root():
+    return {"message": "AI Interview Prep Services API", "status": "online"}
+
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat()
+    }
 
 app.add_middleware(
     CORSMiddleware,

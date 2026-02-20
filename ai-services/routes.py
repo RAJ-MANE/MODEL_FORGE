@@ -20,6 +20,7 @@ import google.generativeai as genai
 import logging
 import json
 from datetime import datetime
+import datetime as dt # For internal use if needed
 from sklearn.preprocessing import StandardScaler
 
 # Set up logging
@@ -2012,20 +2013,7 @@ class InterviewReportResponse(BaseModel):
 
 def register_routes(app: FastAPI):
     
-    @app.get("/")
-    async def root():
-        return {"message": "AI Interview Prep Services API", "status": "online"}
-    
-    @app.get("/health")
-    async def health_check():
-        return {
-            "status": "healthy",
-            "services": {
-                "facial_analysis": "online",
-                "voice_analysis": "online", 
-                "gemini_integration": "online"
-            }
-        }
+    # Root and Health check endpoints are now in main.py
     
     @app.post("/analyze/facial", response_model=AnalysisResponse)
     async def analyze_facial(request: AnalysisRequest):
