@@ -597,10 +597,73 @@ class RealVoiceAnalyzer:
             "emotional_state": {"neutral": 0.8}
         }
 
+class RealGroqClient:
+    def __init__(self):
+        """Initialize Groq client with API key."""
+        api_key = os.getenv('GROQ_API_KEY', '')
+        if api_key and api_key != 'your-groq-api-key-here':
+            try:
+                from groq import Groq
+                self.client = Groq(api_key=api_key)
+                self.api_available = True
+                self.model = "llama-3.3-70b-versatile"
+                logger.info("Groq client initialized successfully")
+            except ImportError:
+                logger.warning("Groq package not installed, run pip install groq")
+                self.api_available = False
+            except Exception as e:
+                logger.error(f"Groq initialization error: {str(e)}")
+                self.api_available = False
+        else:
+            self.api_available = False
+
+    async def generate_question(self, job_role, resume_data=None, difficulty="medium", category="behavioral"):
+        """Generate interview question using Groq API."""
+        if not self.api_available: return None
+        try:
+            prompt = self._build_question_prompt(job_role, resume_data, difficulty, category)
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"}
+            )
+            import json
+            question_data = json.loads(completion.choices[0].message.content)
+            return {
+                "question": question_data.get("question", f"Tell me about your experience as a {job_role}."),
+                "category": question_data.get("category", "behavioral"),
+                "difficulty": difficulty,
+                "duration": question_data.get("duration", "2-3 minutes"),
+                "criteria": question_data.get("criteria", ["Clarity", "Relevance", "Depth"]),
+                "generated_at": datetime.now().isoformat(),
+                "provider": "groq"
+            }
+        except Exception as e:
+            logger.error(f"Groq generation error: {str(e)}")
+            return None
+
+    def _build_question_prompt(self, job_role, resume_data, difficulty, category):
+        return gemini_client._build_question_prompt(job_role, resume_data, difficulty, category)
+
+    async def evaluate_answer(self, answer_text, question):
+        """Evaluate answer using Groq API."""
+        if not self.api_available: return None
+        try:
+            prompt = f"Evaluate this interview answer strictly.\nQUESTION: {question}\nANSWER: {answer_text}\nReturn JSON: {{\"score\": <0-100>, \"feedback\": \"<2 sentences>\", \"strengths\": [], \"improvements\": []}}"
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"}
+            )
+            import json
+            return json.loads(completion.choices[0].message.content)
+        except Exception as e:
+            logger.error(f"Groq evaluation error: {str(e)}")
+            return None
+
 class RealGeminiClient:
     def __init__(self):
         """Initialize Gemini client with API key."""
-        # You'll need to set your GOOGLE_API_KEY environment variable
         api_key = os.getenv('GOOGLE_API_KEY', 'your-api-key-here')
         if api_key and api_key != 'your-api-key-here':
             genai.configure(api_key=api_key)
@@ -609,41 +672,68 @@ class RealGeminiClient:
         else:
             logger.warning("GOOGLE_API_KEY not set, using fallback question generation")
             self.api_available = False
+
+
     
     async def generate_question(self, job_role, resume_data=None, difficulty="medium", category="behavioral"):
-        """Generate interview question using Gemini API."""
-        if not self.api_available:
-            return self._fallback_question_generation(job_role, difficulty)
-        
-        try:
-            # Build context-aware prompt
-            prompt = self._build_question_prompt(job_role, resume_data, difficulty, category)
-            
-            response = self.model.generate_content(prompt)
-            
-            # Parse response
-            question_data = self._parse_question_response(response.text)
-            
-            return {
-                "question": question_data.get("question", f"Tell me about your experience as a {job_role}."),
-                "category": question_data.get("category", "behavioral"),
-                "difficulty": difficulty,
-                "duration": question_data.get("duration", "2-3 minutes"),
-                "criteria": question_data.get("criteria", ["Clarity", "Relevance", "Depth"]),
-                "generated_at": datetime.now().isoformat()
-            }
-            
-        except Exception as e:
-            logger.error(f"Gemini API error: {str(e)}")
-            return self._fallback_question_generation(job_role, difficulty)
-    
+        """Generate interview question with multi-provider failover (Groq first)."""
+        # 1. Try Groq first
+        if groq_client.api_available:
+            try:
+                groq_res = await groq_client.generate_question(job_role, resume_data, difficulty, category)
+                if groq_res:
+                    return groq_res
+            except Exception as e:
+                logger.warning(f"Groq generation failed, trying Gemini: {str(e)}")
+
+        # 2. Try Gemini (Failover)
+        if self.api_available:
+            try:
+                prompt = self._build_question_prompt(job_role, resume_data, difficulty, category)
+                response = self.model.generate_content(prompt)
+                question_data = self._parse_question_response(response.text)
+                return {
+                    "question": question_data.get("question", f"Tell me about your experience as a {job_role}."),
+                    "category": question_data.get("category", "behavioral"),
+                    "difficulty": difficulty,
+                    "duration": question_data.get("duration", "2-3 minutes"),
+                    "criteria": question_data.get("criteria", ["Clarity", "Relevance", "Depth"]),
+                    "generated_at": datetime.now().isoformat(),
+                    "provider": "gemini"
+                }
+            except Exception as e:
+                logger.error(f"Gemini API error: {str(e)}")
+
+        # 3. Last Resort: Hardcoded Fallback
+        template_asked = resume_data.get('asked_questions', []) if resume_data else []
+        return self._fallback_question_generation(job_role, difficulty, template_asked)
+
     async def evaluate_answer(self, answer_text, question):
-        """Evaluate answer using Gemini API with strict scoring."""
-        if not self.api_available:
-            return self._fallback_answer_evaluation(answer_text)
-        
-        try:
-            prompt = f"""You are a strict, senior interview panel evaluator. Score this answer HONESTLY with NO INFLATION.
+        """Evaluate answer with multi-provider failover (Groq first)."""
+        # 1. Try Groq first
+        if groq_client.api_available:
+            try:
+                groq_res = await groq_client.evaluate_answer(answer_text, question)
+                if groq_res:
+                    return groq_res
+            except Exception as e:
+                logger.warning(f"Groq evaluation failed, trying Gemini: {str(e)}")
+
+        # 2. Try Gemini
+        if self.api_available:
+            try:
+                prompt = self._build_evaluation_prompt(answer_text, question)
+                response = self.model.generate_content(prompt)
+                return self._parse_evaluation_response(response.text, answer_text)
+            except Exception as e:
+                logger.error(f"Gemini evaluation error: {str(e)}")
+
+        # 3. Fallback
+        return self._fallback_answer_evaluation(answer_text)
+    
+    def _build_evaluation_prompt(self, answer_text, question):
+        """Build the prompt for Gemini answer evaluation."""
+        return f"""You are a strict, senior interview panel evaluator. Score this answer HONESTLY with NO INFLATION.
 
 QUESTION: {question}
 ANSWER: {answer_text}
@@ -667,35 +757,30 @@ MANDATORY PENALTIES:
 An average answer deserves 40-55. Only genuinely impressive answers deserve 70+.
 Return ONLY valid JSON (no markdown code fences):
 {{"score": <integer 0-100>, "feedback": "<2-sentence honest evaluation>", "strengths": ["<strength>"], "improvements": ["<area 1>", "<area 2>"]}}"""
-            
-            response = self.model.generate_content(prompt)
-            
-            try:
-                text = response.text.strip()
-                if text.startswith('```json'):
-                    text = text[7:]
-                if text.startswith('```'):
-                    text = text[3:]
-                if text.endswith('```'):
-                    text = text[:-3]
-                text = text.strip()
-                
-                evaluation = json.loads(text)
-                # Hard-cap by word count regardless of what AI returned
-                word_count = len(str(answer_text).split())
-                if word_count < 10:
-                    evaluation['score'] = min(evaluation.get('score', 0), 20)
-                elif word_count < 30:
-                    evaluation['score'] = min(evaluation.get('score', 0), 40)
-                evaluation['score'] = max(0, min(100, int(evaluation.get('score', 30))))
-                return evaluation
-            except json.JSONDecodeError:
-                return self._parse_text_evaluation(response.text)
-                
-        except Exception as e:
-            logger.error(f"Answer evaluation error: {str(e)}")
-            return self._fallback_answer_evaluation(answer_text)
 
+    def _parse_evaluation_response(self, response_text, answer_text):
+        """Parse Gemini response for answer evaluation."""
+        try:
+            text = response_text.strip()
+            if text.startswith('```json'):
+                text = text[7:]
+            if text.startswith('```'):
+                text = text[3:]
+            if text.endswith('```'):
+                text = text[:-3]
+            text = text.strip()
+            
+            evaluation = json.loads(text)
+            # Hard-cap by word count regardless of what AI returned
+            word_count = len(str(answer_text).split())
+            if word_count < 10:
+                evaluation['score'] = min(evaluation.get('score', 0), 20)
+            elif word_count < 30:
+                evaluation['score'] = min(evaluation.get('score', 0), 40)
+            evaluation['score'] = max(0, min(100, int(evaluation.get('score', 30))))
+            return evaluation
+        except json.JSONDecodeError:
+            return self._parse_text_evaluation(response_text)
     
     def _build_question_prompt(self, job_role, resume_data, difficulty, category="behavioral"):
         """Build a comprehensive prompt for question generation."""
@@ -855,23 +940,43 @@ Return ONLY valid JSON (no markdown code fences):
             "improvements": ["Add more specific examples"]
         }
     
-    def _fallback_question_generation(self, job_role, difficulty):
+    def _fallback_question_generation(self, job_role, difficulty, asked_questions=[]):
         """Fallback question generation when API is not available."""
         questions_by_role = {
             "Software Developer": [
                 "Tell me about a challenging bug you've had to debug.",
                 "How do you approach code reviews with your team?",
-                "Describe a time when you had to learn a new technology quickly."
+                "Describe a time when you had to learn a new technology quickly.",
+                "How would you handle a disagreement with a technical lead?",
+                "Tell me about a project where you had to optimize for performance.",
+                "What's your process for writing automated tests?"
             ],
             "Data Scientist": [
                 "Walk me through your approach to a machine learning project.",
                 "How do you handle missing data in your datasets?",
-                "Describe a time when your model didn't perform as expected."
+                "Describe a time when your model didn't perform as expected.",
+                "How do you explain complex models to non-technical stakeholders?",
+                "Tell me about your experience with feature engineering.",
+                "How do you handle imbalanced datasets?"
             ],
             "Product Manager": [
                 "How do you prioritize features in a product roadmap?",
                 "Tell me about a time you had to make a difficult product decision.",
-                "How do you gather and incorporate user feedback?"
+                "How do you gather and incorporate user feedback?",
+                "Describe a product launch that didn't go as planned.",
+                "How do you bridge the gap between business and engineering?",
+                "Tell me about a time you had to say 'no' to a feature request."
+            ],
+            "UX Designer": [
+                "Walk me through your design process.",
+                "How do you incorporate user feedback into your designs?",
+                "Tell me about a time you had to defend a design decision.",
+                "What's your approach to creating accessible web interfaces?"
+            ],
+            "Marketing Manager": [
+                "Describe a successful marketing campaign you've led.",
+                "How do you track and analyze the ROI of campaigns?",
+                "Tell me about a time you had to pivot a marketing strategy."
             ]
         }
         
@@ -882,8 +987,14 @@ Return ONLY valid JSON (no markdown code fences):
             "Describe a project you're particularly proud of."
         ])
         
+        # Filter out already asked questions
+        available_questions = [q for q in role_questions if q not in asked_questions]
+        
+        # Fallback to all if pool empty
+        final_pool = available_questions if available_questions else role_questions
+        
         return {
-            "question": random.choice(role_questions),
+            "question": random.choice(final_pool),
             "category": "behavioral",
             "difficulty": difficulty,
             "duration": "2-3 minutes",
@@ -1533,6 +1644,7 @@ JSON Response:
 facial_analyzer = RealFacialAnalyzer()
 voice_analyzer = RealVoiceAnalyzer()
 gemini_client = RealGeminiClient()
+groq_client = RealGroqClient()
 
 # WebSocket Connection Manager for Live Analysis
 class ConnectionManager:

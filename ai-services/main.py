@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from routes import register_routes, ConnectionManager
+from routes import register_routes, ConnectionManager, gemini_client, groq_client
 import json
 import asyncio
 import logging
@@ -23,6 +23,8 @@ async def root():
 async def health_check():
     return {
         "status": "healthy",
+        "gemini_api_available": gemini_client.api_available if hasattr(gemini_client, 'api_available') else False,
+        "groq_api_available": groq_client.api_available if hasattr(groq_client, 'api_available') else False,
         "timestamp": datetime.now().isoformat()
     }
 

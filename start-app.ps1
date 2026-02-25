@@ -73,4 +73,5 @@ Write-Host "🎉 Application is ready! Open http://localhost:3000 to start" -For
 
 # Wait for user input to keep the main window open
 Write-Host "Press any key to exit this window (services will continue running)..."
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+# $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+

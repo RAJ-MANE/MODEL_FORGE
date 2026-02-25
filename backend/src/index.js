@@ -42,14 +42,35 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
-app.get('/health', (req, res) => {
-    res.json({ 
-        status: 'healthy', 
+app.get('/health', async (req, res) => {
+    let aiStatus = 'offline';
+    let aiDetails = null;
+
+    try {
+        const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8001';
+        const response = await fetch(`${aiServiceUrl}/health`);
+        if (response.ok) {
+            aiDetails = await response.json();
+            if (aiDetails.gemini_api_available && aiDetails.groq_api_available) {
+                aiStatus = 'active (multi-provider)';
+            } else if (aiDetails.gemini_api_available || aiDetails.groq_api_available) {
+                aiStatus = 'active (partial)';
+            } else {
+                aiStatus = 'fallback-only';
+            }
+        }
+    } catch (error) {
+        aiStatus = 'unreachable';
+    }
+
+    res.json({
+        status: 'healthy',
         timestamp: new Date().toISOString(),
         services: {
             api: 'online',
             websocket: 'online',
-            ai_services: 'checking...'
+            ai_services: aiStatus,
+            ai_details: aiDetails
         }
     });
 });
@@ -135,27 +156,53 @@ function generateFallbackQuestion(jobRole, category, difficulty, resumeData = nu
                 'Explain your process for competitive analysis.',
                 'How do you approach product pricing strategy?'
             ]
+        },
+        'UX Designer': {
+            'behavioral': [
+                'Tell me about a time you had to defend a design decision to stakeholders.',
+                'Describe your process for conducting user research.',
+                'How do you handle negative feedback on your designs?',
+                'Walk me through a project where you had to balance user needs with business goals.'
+            ],
+            'technical': [
+                'Explain your approach to creating accessible designs.',
+                'How do you handle hand-offs to engineering?',
+                'Describe your experience with design systems.',
+                'What tools and methodologies do you use for prototyping?'
+            ]
+        },
+        'Marketing Manager': {
+            'behavioral': [
+                'Describe a marketing campaign you led from start to finish.',
+                'How do you handle a situation where a campaign is underperforming?',
+                'Tell me about a time you had to work with a limited budget.'
+            ],
+            'technical': [
+                'How do you measure the ROI of your marketing efforts?',
+                'Explain your approach to SEO and content strategy.',
+                'What tools do you use for marketing automation?'
+            ]
         }
     };
-    
+
     // Get questions for the role and category, with fallbacks
     const roleQuestions = questionSets[jobRole] || questionSets['Software Developer'];
     const categoryQuestions = roleQuestions[category] || roleQuestions['behavioral'];
-    
+
     // Filter out already asked questions
     const availableQuestions = categoryQuestions.filter(q => !askedQuestions.includes(q));
-    
+
     // If all questions have been asked, reset the pool but add variation
     const questionsToChooseFrom = availableQuestions.length > 0 ? availableQuestions : categoryQuestions;
-    
+
     // Select a random question
     let selectedQuestion = questionsToChooseFrom[Math.floor(Math.random() * questionsToChooseFrom.length)];
-    
+
     // Personalize question based on resume data if available
     if (resumeData) {
         selectedQuestion = personalizeQuestionWithResume(selectedQuestion, resumeData, jobRole);
     }
-    
+
     return {
         id: Date.now(),
         question: selectedQuestion,
@@ -171,25 +218,25 @@ function generateFallbackQuestion(jobRole, category, difficulty, resumeData = nu
 // Personalize questions based on resume data
 function personalizeQuestionWithResume(baseQuestion, resumeData, jobRole) {
     if (!resumeData) return baseQuestion;
-    
+
     const skills = resumeData.skills || [];
     const experience = resumeData.experience || [];
     const projects = resumeData.projects || [];
-    
+
     // If resume has specific skills, incorporate them
     if (skills.length > 0) {
         const randomSkill = skills[Math.floor(Math.random() * Math.min(skills.length, 3))];
-        
+
         // Customize question based on skills
         if (baseQuestion.includes('technology') || baseQuestion.includes('technical')) {
             return baseQuestion + ` Specifically, can you share your experience with ${randomSkill}?`;
         }
-        
+
         if (baseQuestion.includes('project')) {
             return baseQuestion + ` Please focus on a project where you used ${randomSkill}.`;
         }
     }
-    
+
     // If resume has experience, reference it
     if (experience.length > 0) {
         const recentExperience = experience[0]; // Assume first is most recent
@@ -197,7 +244,7 @@ function personalizeQuestionWithResume(baseQuestion, resumeData, jobRole) {
             return baseQuestion + ` Drawing from your experience at ${recentExperience.company || 'your previous company'}.`;
         }
     }
-    
+
     // If resume has projects, reference them
     if (projects.length > 0) {
         const randomProject = projects[Math.floor(Math.random() * Math.min(projects.length, 2))];
@@ -205,7 +252,7 @@ function personalizeQuestionWithResume(baseQuestion, resumeData, jobRole) {
             return baseQuestion + ` You can reference ${randomProject.name || 'one of your projects'} if relevant.`;
         }
     }
-    
+
     return baseQuestion;
 }
 
@@ -213,10 +260,10 @@ function personalizeQuestionWithResume(baseQuestion, resumeData, jobRole) {
 function generateFallbackEvaluation(response) {
     const wordCount = response.split(' ').filter(word => word.trim().length > 0).length;
     const sentenceCount = response.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
-    
+
     // Simple scoring based on response length and structure
     let score = 60; // Base score
-    
+
     // Word count scoring
     if (wordCount < 10) {
         score -= 20;
@@ -227,12 +274,12 @@ function generateFallbackEvaluation(response) {
     } else if (wordCount > 200) {
         score -= 5; // Too lengthy
     }
-    
+
     // Structure scoring
     if (sentenceCount >= 2) {
         score += 10; // Good structure
     }
-    
+
     // Look for key indicators
     const indicators = {
         examples: /\b(example|instance|experience|situation|time when)\b/gi,
@@ -240,21 +287,21 @@ function generateFallbackEvaluation(response) {
         actions: /\b(did|implemented|developed|created|led|managed|coordinated)\b/gi,
         learning: /\b(learned|realized|discovered|understood|gained)\b/gi
     };
-    
+
     Object.values(indicators).forEach(regex => {
         if (regex.test(response)) {
             score += 5;
         }
     });
-    
+
     // Cap the score
     score = Math.min(100, Math.max(30, score));
-    
+
     // Generate feedback based on score
     let feedback = 'Thank you for your response. ';
     const strengths = [];
     const improvements = [];
-    
+
     if (score >= 80) {
         feedback += 'Your answer demonstrates strong communication skills and provides good detail.';
         strengths.push('Clear and comprehensive response');
@@ -268,13 +315,13 @@ function generateFallbackEvaluation(response) {
         improvements.push('Provide more detailed explanations');
         improvements.push('Include specific examples from your experience');
     }
-    
+
     if (wordCount < 20) {
         improvements.push('Expand your answer with more details');
     } else if (wordCount > 200) {
         improvements.push('Try to be more concise while maintaining detail');
     }
-    
+
     return {
         score,
         feedback,
@@ -286,11 +333,11 @@ function generateFallbackEvaluation(response) {
 // Socket.IO connection handling
 io.on('connection', (socket) => {
     console.log('New client connected:', socket.id);
-    
+
     // Join interview session
     socket.on('join-session', (sessionId) => {
         socket.join(sessionId);
-        
+
         // Initialize session if not exists
         if (!activeSessions.has(sessionId)) {
             activeSessions.set(sessionId, {
@@ -306,23 +353,23 @@ io.on('connection', (socket) => {
                 resumeData: null
             });
         }
-        
+
         const session = activeSessions.get(sessionId);
         session.participants.add(socket.id);
-        
+
         socket.emit('session-joined', {
             sessionId,
             participantCount: session.participants.size
         });
-        
+
         console.log(`Client ${socket.id} joined session ${sessionId}`);
     });
-    
+
     // Handle interview question requests
     socket.on('request-question', async (data) => {
         try {
             const { sessionId, category = 'behavioral', difficulty = 'medium', jobRole = 'Software Developer', resumeData = null } = data;
-            
+
             // Get or update session with job role and resume data
             let session = activeSessions.get(sessionId);
             if (session) {
@@ -330,19 +377,19 @@ io.on('connection', (socket) => {
                 session.resumeData = resumeData;
                 session.questionCount++;
             }
-            
+
             // Call AI services for question generation
             let questionData;
             try {
                 const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8001';
-                
+
                 // Enhanced prompt for personalized questions
                 const enhancedResumeData = resumeData ? {
                     ...resumeData,
                     asked_questions: session?.askedQuestions || [],
                     question_count: session?.questionCount || 0
                 } : null;
-                
+
                 const response = await fetch(`${aiServiceUrl}/generate/question`, {
                     method: 'POST',
                     headers: {
@@ -361,7 +408,7 @@ io.on('connection', (socket) => {
                         }
                     })
                 });
-                
+
                 if (response.ok) {
                     const aiQuestion = await response.json();
                     questionData = {
@@ -383,32 +430,32 @@ io.on('connection', (socket) => {
                 const askedQuestions = session?.askedQuestions || [];
                 questionData = generateFallbackQuestion(jobRole, category, difficulty, resumeData, askedQuestions);
             }
-            
+
             // Update session with new question
             if (session) {
                 session.currentQuestion = questionData;
                 session.askedQuestions.push(questionData.question);
             }
-            
+
             io.to(sessionId).emit('question-generated', questionData);
             console.log(`Generated ${session?.askedQuestions?.length > 0 ? 'personalized' : 'standard'} question for session ${sessionId}:`, questionData.question.substring(0, 100) + '...');
-            
+
         } catch (error) {
             console.error('Error generating question:', error);
             socket.emit('error', { message: 'Failed to generate question' });
         }
     });
-    
+
     // Handle user responses
     socket.on('submit-response', async (data) => {
         try {
             const { sessionId, questionId, response, duration, question } = data;
-            
+
             if (activeSessions.has(sessionId)) {
                 const session = activeSessions.get(sessionId);
-                
+
                 let evaluation = null;
-                
+
                 // Call AI service for response evaluation
                 try {
                     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8001';
@@ -418,7 +465,7 @@ io.on('connection', (socket) => {
                             'Content-Type': 'application/json',
                         }
                     });
-                    
+
                     if (evalResponse.ok) {
                         evaluation = await evalResponse.json();
                     } else {
@@ -429,7 +476,7 @@ io.on('connection', (socket) => {
                     console.warn('AI evaluation failed, using fallback:', aiError.message);
                     evaluation = generateFallbackEvaluation(response);
                 }
-                
+
                 const responseData = {
                     id: Date.now(),
                     questionId,
@@ -438,54 +485,54 @@ io.on('connection', (socket) => {
                     timestamp: Date.now(),
                     analysis: evaluation
                 };
-                
+
                 session.responses.push(responseData);
-                
+
                 // Emit response received confirmation with evaluation
-                socket.emit('response-received', { 
+                socket.emit('response-received', {
                     responseId: responseData.id,
                     evaluation: evaluation
                 });
-                
+
                 console.log(`Response evaluated for session ${sessionId}:`, response.substring(0, 50) + '...');
             }
-            
+
         } catch (error) {
             console.error('Error handling response:', error);
             socket.emit('error', { message: 'Failed to process response' });
         }
     });
-    
+
     // Handle real-time analysis data (facial/voice)
     socket.on('analysis-data', (data) => {
         try {
             const { sessionId, type, analysisResult } = data;
-            
+
             if (activeSessions.has(sessionId)) {
                 const session = activeSessions.get(sessionId);
-                
+
                 const analysisEntry = {
                     timestamp: Date.now(),
                     type, // 'facial' or 'voice'
                     data: analysisResult
                 };
-                
+
                 session.analysisData.push(analysisEntry);
-                
+
                 // Broadcast real-time analysis to session participants
                 io.to(sessionId).emit('live-analysis', analysisEntry);
             }
-            
+
         } catch (error) {
             console.error('Error handling analysis data:', error);
         }
     });
-    
+
     // Handle follow-up question requests
     socket.on('request-followup', async (data) => {
         try {
             const { sessionId, originalQuestion, userResponse } = data;
-            
+
             // Mock follow-up question generation
             const followUpQuestion = {
                 id: Date.now(),
@@ -493,21 +540,21 @@ io.on('connection', (socket) => {
                 reasoning: 'To gather more specific details about the situation',
                 timestamp: Date.now()
             };
-            
+
             io.to(sessionId).emit('followup-generated', followUpQuestion);
             console.log(`Generated follow-up for session ${sessionId}`);
-            
+
         } catch (error) {
             console.error('Error generating follow-up:', error);
             socket.emit('error', { message: 'Failed to generate follow-up question' });
         }
     });
-    
+
     // Handle session end
     socket.on('end-session', (sessionId) => {
         if (activeSessions.has(sessionId)) {
             const session = activeSessions.get(sessionId);
-            
+
             // Generate session summary
             const summary = {
                 sessionId,
@@ -517,9 +564,9 @@ io.on('connection', (socket) => {
                 analysisPoints: session.analysisData.length,
                 endTime: Date.now()
             };
-            
+
             io.to(sessionId).emit('session-summary', summary);
-            
+
             // Clean up session after a delay
             setTimeout(() => {
                 activeSessions.delete(sessionId);
@@ -527,16 +574,16 @@ io.on('connection', (socket) => {
             }, 60000); // 1 minute delay
         }
     });
-    
+
     // Handle disconnection
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
-        
+
         // Remove from active sessions
         activeSessions.forEach((session, sessionId) => {
             if (session.participants.has(socket.id)) {
                 session.participants.delete(socket.id);
-                
+
                 // If no participants left, mark session for cleanup
                 if (session.participants.size === 0) {
                     setTimeout(() => {
@@ -559,13 +606,13 @@ app.get('/api/sessions/active', (req, res) => {
         startTime: session.startTime,
         questionsAsked: session.responses.length
     }));
-    
+
     res.json(sessionList);
 });
 
 app.get('/api/sessions/:sessionId', (req, res) => {
     const { sessionId } = req.params;
-    
+
     if (activeSessions.has(sessionId)) {
         const session = activeSessions.get(sessionId);
         res.json({
@@ -585,7 +632,7 @@ app.get('/api/sessions/:sessionId', (req, res) => {
 app.post('/api/generate-question', async (req, res) => {
     try {
         const { sessionId, jobRole = 'Software Developer', category = 'behavioral', difficulty = 'medium', resumeData = null } = req.body;
-        
+
         // Get or create session
         let session = activeSessions.get(sessionId);
         if (!session) {
@@ -603,12 +650,12 @@ app.post('/api/generate-question', async (req, res) => {
             };
             activeSessions.set(sessionId, session);
         }
-        
+
         // Update session info
         session.jobRole = jobRole;
         session.resumeData = resumeData;
         session.questionCount++;
-        
+
         let questionData;
         try {
             const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8001';
@@ -624,7 +671,7 @@ app.post('/api/generate-question', async (req, res) => {
                     session_id: sessionId
                 })
             });
-            
+
             if (response.ok) {
                 const aiQuestion = await response.json();
                 questionData = {
@@ -645,14 +692,14 @@ app.post('/api/generate-question', async (req, res) => {
             const askedQuestions = session?.askedQuestions || [];
             questionData = generateFallbackQuestion(jobRole, category, difficulty, resumeData, askedQuestions);
         }
-        
+
         // Update session with new question
         session.currentQuestion = questionData;
         session.askedQuestions.push(questionData.question);
-        
+
         res.json(questionData);
         console.log(`Generated question via API for session ${sessionId}:`, questionData.question);
-        
+
     } catch (error) {
         console.error('Error generating question:', error);
         res.status(500).json({ error: 'Failed to generate question' });
@@ -663,9 +710,9 @@ app.post('/api/generate-question', async (req, res) => {
 app.post('/api/evaluate-response', async (req, res) => {
     try {
         const { sessionId, response, question, duration } = req.body;
-        
+
         let evaluation = null;
-        
+
         // Call AI service for response evaluation
         try {
             const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8001';
@@ -675,7 +722,7 @@ app.post('/api/evaluate-response', async (req, res) => {
                     'Content-Type': 'application/json',
                 }
             });
-            
+
             if (evalResponse.ok) {
                 evaluation = await evalResponse.json();
             } else {
@@ -686,7 +733,7 @@ app.post('/api/evaluate-response', async (req, res) => {
             console.warn('AI evaluation failed, using fallback:', aiError.message);
             evaluation = generateFallbackEvaluation(response);
         }
-        
+
         // Store response data if session exists
         if (activeSessions.has(sessionId)) {
             const session = activeSessions.get(sessionId);
@@ -700,10 +747,10 @@ app.post('/api/evaluate-response', async (req, res) => {
             };
             session.responses.push(responseData);
         }
-        
+
         res.json(evaluation);
         console.log(`Response evaluated via API for session ${sessionId}:`, response.substring(0, 50) + '...');
-        
+
     } catch (error) {
         console.error('Error evaluating response:', error);
         res.status(500).json({ error: 'Failed to evaluate response' });
@@ -714,13 +761,13 @@ app.post('/api/evaluate-response', async (req, res) => {
 app.post('/api/generate-report', async (req, res) => {
     try {
         const { sessionId } = req.body;
-        
+
         if (!activeSessions.has(sessionId)) {
             return res.status(404).json({ error: 'Session not found' });
         }
-        
+
         const session = activeSessions.get(sessionId);
-        
+
         // Prepare report data
         const reportData = {
             session_id: sessionId,
@@ -728,7 +775,7 @@ app.post('/api/generate-report', async (req, res) => {
             total_questions: 5, // MAX_QUESTIONS from frontend
             questions_answered: session.responses.length,
             questions_skipped: Math.max(0, 5 - session.responses.length),
-            average_response_time: session.responses.length > 0 ? 
+            average_response_time: session.responses.length > 0 ?
                 session.responses.reduce((acc, r) => acc + (r.duration || 0), 0) / session.responses.length : 0,
             responses: session.responses.map(r => ({
                 question: r.question || session.currentQuestion?.question || 'Question not recorded',
@@ -739,7 +786,7 @@ app.post('/api/generate-report', async (req, res) => {
             facial_analysis_summary: calculateFacialAnalysisSummary(session.analysisData),
             voice_analysis_summary: calculateVoiceAnalysisSummary(session.analysisData)
         };
-        
+
         // Call AI service for report generation
         try {
             const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8001';
@@ -750,13 +797,13 @@ app.post('/api/generate-report', async (req, res) => {
                 },
                 body: JSON.stringify(reportData)
             });
-            
+
             if (reportResponse.ok) {
                 const report = await reportResponse.json();
-                
+
                 // Store report in session for potential retrieval
                 session.finalReport = report;
-                
+
                 res.json(report);
                 console.log(`Interview report generated for session ${sessionId}`);
             } else {
@@ -764,13 +811,13 @@ app.post('/api/generate-report', async (req, res) => {
             }
         } catch (aiError) {
             console.warn('AI report generation failed, using fallback:', aiError.message);
-            
+
             // Fallback report generation
             const fallbackReport = generateFallbackReport(reportData);
             session.finalReport = fallbackReport;
             res.json(fallbackReport);
         }
-        
+
     } catch (error) {
         console.error('Error generating report:', error);
         res.status(500).json({ error: 'Failed to generate interview report' });
@@ -781,11 +828,11 @@ app.post('/api/generate-report', async (req, res) => {
 function calculateFacialAnalysisSummary(analysisData) {
     const facialData = analysisData.filter(d => d.type === 'facial');
     if (facialData.length === 0) return null;
-    
+
     const avgConfidence = facialData.reduce((acc, d) => acc + (d.data.confidence || 0.75), 0) / facialData.length;
     const avgEngagement = facialData.reduce((acc, d) => acc + (d.data.engagement || 0.80), 0) / facialData.length;
     const avgEyeContact = facialData.reduce((acc, d) => acc + (d.data.eye_contact || 0.70), 0) / facialData.length;
-    
+
     return {
         average_confidence: avgConfidence,
         average_engagement: avgEngagement,
@@ -798,10 +845,10 @@ function calculateFacialAnalysisSummary(analysisData) {
 function calculateVoiceAnalysisSummary(analysisData) {
     const voiceData = analysisData.filter(d => d.type === 'voice');
     if (voiceData.length === 0) return null;
-    
+
     const avgClarity = voiceData.reduce((acc, d) => acc + (d.data.clarity || 0.85), 0) / voiceData.length;
     const avgConfidence = voiceData.reduce((acc, d) => acc + (d.data.confidence_score || 0.75), 0) / voiceData.length;
-    
+
     // Get most common pace
     const paceCount = { slow: 0, moderate: 0, fast: 0 };
     voiceData.forEach(d => {
@@ -809,7 +856,7 @@ function calculateVoiceAnalysisSummary(analysisData) {
         if (paceCount[pace] !== undefined) paceCount[pace]++;
     });
     const dominantPace = Object.keys(paceCount).reduce((a, b) => paceCount[a] > paceCount[b] ? a : b);
-    
+
     return {
         average_clarity: avgClarity,
         average_confidence: avgConfidence,
@@ -820,16 +867,16 @@ function calculateVoiceAnalysisSummary(analysisData) {
 
 // Fallback report generation
 function generateFallbackReport(reportData) {
-    const avgScore = reportData.responses.length > 0 ? 
+    const avgScore = reportData.responses.length > 0 ?
         reportData.responses.reduce((acc, r) => acc + (r.analysis.score || 70), 0) / reportData.responses.length : 70;
-    
+
     const completionRate = reportData.questions_answered / reportData.total_questions;
     const overallScore = Math.round(avgScore * 0.7 + completionRate * 100 * 0.3);
-    
+
     let placementLikelihood = 'Medium';
     if (overallScore >= 80) placementLikelihood = 'High';
     else if (overallScore < 65) placementLikelihood = 'Low';
-    
+
     return {
         session_id: reportData.session_id,
         overall_score: overallScore,

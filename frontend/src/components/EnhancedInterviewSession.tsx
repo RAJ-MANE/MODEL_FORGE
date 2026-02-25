@@ -798,7 +798,8 @@ const EnhancedInterviewSession: React.FC = () => {
         formData.append('question_id', currentQuestionNumber.toString());
 
         console.log('🎵 Sending audio for voice analysis...');
-        const voiceResponse = await fetch('http://localhost:8001/analyze/voice', {
+        const aiServiceUrl = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+        const voiceResponse = await fetch(`${aiServiceUrl}/analyze/voice`, {
           method: 'POST',
           body: formData
         });

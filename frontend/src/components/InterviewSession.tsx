@@ -45,10 +45,10 @@ const InterviewSession: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  
+
   const jobRole = searchParams.get('role') || 'Software Developer';
   const hasResume = searchParams.get('hasResume') === 'true';
-  
+
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [analysisData, setAnalysisData] = useState({
@@ -59,7 +59,7 @@ const InterviewSession: React.FC = () => {
   const [resumeData, setResumeData] = useState<any>(null);
   const [avatarSpeaking, setAvatarSpeaking] = useState(false);
   const [avatarText, setAvatarText] = useState('');
-  
+
   // New state for enhanced features
   const [conversationLog, setConversationLog] = useState<ConversationEntry[]>([]);
   const [currentQuestionNumber, setCurrentQuestionNumber] = useState(0);
@@ -81,7 +81,7 @@ const InterviewSession: React.FC = () => {
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  
+
   const MAX_QUESTIONS = 5;
 
   useEffect(() => {
@@ -101,44 +101,44 @@ const InterviewSession: React.FC = () => {
       const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognitionConstructor) {
         recognitionRef.current = new SpeechRecognitionConstructor();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'en-US';
-      
-      recognitionRef.current.onresult = (event) => {
-        let finalTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
+        recognitionRef.current.continuous = true;
+        recognitionRef.current.interimResults = true;
+        recognitionRef.current.lang = 'en-US';
+
+        recognitionRef.current.onresult = (event) => {
+          let finalTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            }
           }
-        }
-        if (finalTranscript) {
-          setCurrentAnswer(prev => prev + ' ' + finalTranscript);
-        }
-      };
-      
-      recognitionRef.current.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-      };
+          if (finalTranscript) {
+            setCurrentAnswer(prev => prev + ' ' + finalTranscript);
+          }
+        };
+
+        recognitionRef.current.onerror = (event) => {
+          console.error('Speech recognition error:', event.error);
+          setIsListening(false);
+        };
       }
     }
   }, []);
 
   useEffect(() => {
     if (!interviewStarted) return;
-    
+
     // Generate initial question based on resume or general category
     generateNewQuestion();
   }, [jobRole, resumeData, interviewStarted]);
-  
+
   // Save conversation log to localStorage
   useEffect(() => {
     if (sessionId && conversationLog.length > 0) {
       localStorage.setItem(`interview_log_${sessionId}`, JSON.stringify(conversationLog));
     }
   }, [conversationLog, sessionId]);
-  
+
   // Load existing conversation log
   useEffect(() => {
     if (sessionId) {
@@ -153,7 +153,7 @@ const InterviewSession: React.FC = () => {
     setInterviewStarted(true);
     setQuestionStartTime(new Date());
   };
-  
+
   const endInterview = () => {
     setInterviewEnded(true);
     setIsRecording(false);
@@ -161,7 +161,7 @@ const InterviewSession: React.FC = () => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
-    
+
     // Calculate final scores
     const finalScore = {
       ...interviewScore,
@@ -170,7 +170,7 @@ const InterviewSession: React.FC = () => {
       eyeContact: analysisData.eyeContact,
     };
     setInterviewScore(finalScore);
-    
+
     // Store interview data for potential report generation
     const interviewData = {
       sessionId: sessionId!,
@@ -191,13 +191,13 @@ const InterviewSession: React.FC = () => {
         evaluation: entry.evaluation || 'No evaluation'
       }))
     };
-    
+
     // Store the interview data in sessionStorage
     sessionStorage.setItem(`interview_data_${sessionId}`, JSON.stringify(interviewData));
-    
+
     setShowFeedbackReport(true);
   };
-  
+
   const addToConversationLog = (entry: Omit<ConversationEntry, 'id' | 'timestamp'>) => {
     const newEntry: ConversationEntry = {
       ...entry,
@@ -206,32 +206,32 @@ const InterviewSession: React.FC = () => {
     };
     setConversationLog(prev => [...prev, newEntry]);
   };
-  
+
   const evaluateAnswer = (answer: string): { score: number; evaluation: string } => {
     // Improved evaluation logic focusing on key elements
     const wordCount = answer.trim().split(' ').length;
-    const hasStar = answer.includes('STAR') || 
-                   (answer.includes('situation') && 
-                    answer.includes('task') && 
-                    answer.includes('action') && 
-                    answer.includes('result'));
-                   
+    const hasStar = answer.includes('STAR') ||
+      (answer.includes('situation') &&
+        answer.includes('task') &&
+        answer.includes('action') &&
+        answer.includes('result'));
+
     const hasSpecifics = /\d+|specific|example|instance|achieved|improved|increased|decreased/i.test(answer);
     const hasKeywords = /skill|experience|project|challenge|learn|solve|team|collaborate/i.test(answer);
-    
+
     // Start with a lower base score
     let score = 60;
-    
+
     // More meaningful scoring criteria
     if (wordCount > 30) score += 10; // Reasonable length
     if (wordCount > 60) score += 10; // Good elaboration
     if (hasStar) score += 20; // Using STAR method
     if (hasSpecifics) score += 15; // Including specifics
     if (hasKeywords) score += 10; // Using relevant keywords
-    
+
     // Cap at 100
     score = Math.min(score, 100);
-    
+
     // More constructive feedback
     let evaluation = '';
     if (score >= 90) {
@@ -243,7 +243,7 @@ const InterviewSession: React.FC = () => {
     } else {
       evaluation = 'Your answer should be more specific, use the STAR method and include measurable results.';
     }
-    
+
     return { score, evaluation };
   };
 
@@ -262,16 +262,16 @@ const InterviewSession: React.FC = () => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
-    
+
     if (currentAnswer.trim()) {
       const responseTime = questionStartTime ? (new Date().getTime() - questionStartTime.getTime()) / 1000 : 0;
-      
+
       // For now, just use local evaluation
       // TODO: Add AI evaluation service
-      
+
       // Use local evaluation as fallback or immediate feedback
       const { score, evaluation } = evaluateAnswer(currentAnswer);
-      
+
       // Add answer to conversation log
       addToConversationLog({
         type: 'answer',
@@ -280,7 +280,7 @@ const InterviewSession: React.FC = () => {
         evaluation,
         isAnswered: true,
       });
-      
+
       // Update interview score
       setInterviewScore(prev => ({
         ...prev,
@@ -288,9 +288,9 @@ const InterviewSession: React.FC = () => {
         questionsAnswered: prev.questionsAnswered + 1,
         averageResponseTime: (prev.averageResponseTime * prev.questionsAnswered + responseTime) / (prev.questionsAnswered + 1),
       }));
-      
+
       setCurrentAnswer('');
-      
+
       // Check if interview should end after 5 questions
       const totalQuestions = interviewScore.questionsAnswered + 1 + interviewScore.questionsSkipped;
       if (totalQuestions >= MAX_QUESTIONS) {
@@ -305,7 +305,7 @@ const InterviewSession: React.FC = () => {
       }
     }
   };
-  
+
   const skipQuestion = () => {
     // Deduct points for skipping
     const skipPenalty = 15;
@@ -314,14 +314,14 @@ const InterviewSession: React.FC = () => {
       totalScore: Math.max(0, prev.totalScore - skipPenalty),
       questionsSkipped: prev.questionsSkipped + 1,
     }));
-    
+
     // Add skip entry to conversation log
     addToConversationLog({
       type: 'skipped',
       content: currentQuestion,
       isAnswered: false,
     });
-    
+
     // Check if interview should end after 5 questions
     const totalQuestions = interviewScore.questionsAnswered + interviewScore.questionsSkipped + 1;
     if (totalQuestions >= MAX_QUESTIONS) {
@@ -340,48 +340,48 @@ const InterviewSession: React.FC = () => {
       endInterview();
       return;
     }
-    
+
     setCurrentQuestionNumber(prev => prev + 1);
-    
+
     console.log('Generating AI question...', {
       currentQuestionNumber: currentQuestionNumber + 1,
       jobRole,
       resumeData,
       sessionId
     });
-    
+
     try {
       // Get AI-generated question with retry
       const aiQuestion = await getAIQuestionWithRetry();
-      
+
       console.log('✅ AI Question successfully generated:', aiQuestion.substring(0, 100) + '...');
-      
+
       setCurrentQuestion(aiQuestion);
       setAvatarText(aiQuestion);
       setAvatarSpeaking(true);
       setQuestionStartTime(new Date());
-      
+
       // Add to conversation log
       addToConversationLog({
         type: 'question',
         content: aiQuestion,
         isAnswered: false,
       });
-      
+
       // Stop avatar speaking
       setTimeout(() => setAvatarSpeaking(false), aiQuestion.length * 80);
-      
+
     } catch (error) {
       console.error('❌ Failed to generate AI question:', error);
-      
+
       // Show error to user instead of fallback
       const errorQuestion = `I apologize, but I'm having trouble connecting to the AI service to generate personalized questions. Please refresh the page and try again. Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      
+
       setCurrentQuestion(errorQuestion);
       setAvatarText('Technical difficulties occurred');
       setAvatarSpeaking(false);
       setQuestionStartTime(new Date());
-      
+
       addToConversationLog({
         type: 'question',
         content: errorQuestion,
@@ -389,17 +389,17 @@ const InterviewSession: React.FC = () => {
       });
     }
   };
-  
+
   const getAIQuestionWithRetry = async (): Promise<string> => {
     const maxRetries = 3;
     let lastError: any = null;
-    
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const categories = ['behavioral', 'technical', 'situational'];
         const category = categories[(currentQuestionNumber - 1) % categories.length];
         const difficulty = currentQuestionNumber <= 2 ? 'easy' : currentQuestionNumber <= 4 ? 'medium' : 'hard';
-        
+
         console.log(`AI Question Attempt ${attempt}:`, {
           category,
           difficulty,
@@ -407,7 +407,7 @@ const InterviewSession: React.FC = () => {
           hasResumeData: !!resumeData,
           resumeSkills: resumeData?.skills?.slice(0, 3)
         });
-        
+
         const requestBody = {
           job_role: jobRole,
           difficulty: difficulty,
@@ -415,24 +415,24 @@ const InterviewSession: React.FC = () => {
           category: category,
           resume_data: resumeData || null
         };
-        
-        console.log('Sending request to AI service:', requestBody);
-        
-        const response = await fetch('http://localhost:8001/generate/question', {
+
+        const aiServiceUrl = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+
+        const response = await fetch(`${aiServiceUrl}/generate/question`, {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
           },
           body: JSON.stringify(requestBody)
         });
-        
+
         console.log('AI Service Response Status:', response.status);
-        
+
         if (response.ok) {
           const data = await response.json();
           console.log('AI Question received:', data.question?.substring(0, 100) + '...');
-          
+
           if (data.question && data.question.length > 10) {
             return data.question;
           } else {
@@ -442,51 +442,51 @@ const InterviewSession: React.FC = () => {
           const errorText = await response.text();
           throw new Error(`AI service responded with ${response.status}: ${errorText}`);
         }
-        
+
       } catch (error) {
         console.error(`AI API attempt ${attempt} failed:`, error);
         lastError = error;
-        
+
         if (attempt < maxRetries) {
           console.log(`Retrying in ${attempt} seconds...`);
           await new Promise(resolve => setTimeout(resolve, attempt * 1000));
         }
       }
     }
-    
+
     console.error('All AI API attempts failed, throwing error to force reload');
     throw new Error(`AI service unavailable after ${maxRetries} attempts. Last error: ${lastError?.message}`);
   };
-  
-  
-  
+
+
+
   const FeedbackReport = () => {
-    const overallGrade = 
+    const overallGrade =
       interviewScore.totalScore >= 90 ? 'A' :
-      interviewScore.totalScore >= 80 ? 'B' :
-      interviewScore.totalScore >= 70 ? 'C' :
-      interviewScore.totalScore >= 60 ? 'D' : 'F';
-      
+        interviewScore.totalScore >= 80 ? 'B' :
+          interviewScore.totalScore >= 70 ? 'C' :
+            interviewScore.totalScore >= 60 ? 'D' : 'F';
+
     // Calculate improved score based on answered questions
-    const answeredScore = interviewScore.questionsAnswered > 0 
+    const answeredScore = interviewScore.questionsAnswered > 0
       ? Math.round((interviewScore.totalScore / interviewScore.questionsAnswered) * 20)
       : 0;
-      
+
     const resumeGaps = resumeData ? [
       resumeData.skills.length < 3 && 'Consider adding more relevant technical skills to your resume.',
       resumeData.projects.length < 2 && 'Include more project examples that showcase your abilities.',
       resumeData.experience.length < 2 && 'Highlight more work experiences with specific achievements.'
     ].filter(Boolean) : [];
-    
+
     const answerImprovements = [
       'Use the STAR method: Situation, Task, Action, Result for behavioral questions.',
       'Include specific metrics and numbers to quantify your achievements.',
       'Practice explaining technical concepts in simple terms.',
       'Prepare examples that demonstrate leadership and problem-solving skills.'
     ];
-    
+
     const recommendations = [...resumeGaps, ...answerImprovements];
-      
+
     return (
       <Dialog open={showFeedbackReport} maxWidth="md" fullWidth>
         <DialogTitle>
@@ -511,7 +511,7 @@ const InterviewSession: React.FC = () => {
                 </Typography>
               </Card>
             </Grid>
-            
+
             {/* Statistics */}
             <Grid item xs={12} md={8}>
               <Card sx={{ p: 2 }}>
@@ -554,7 +554,7 @@ const InterviewSession: React.FC = () => {
                 </Grid>
               </Card>
             </Grid>
-            
+
             {/* Analysis Scores */}
             <Grid item xs={12}>
               <Card sx={{ p: 2 }}>
@@ -606,7 +606,7 @@ const InterviewSession: React.FC = () => {
                 </Grid>
               </Card>
             </Grid>
-            
+
             {/* Recommendations */}
             {recommendations.length > 0 && (
               <Grid item xs={12}>
@@ -624,7 +624,7 @@ const InterviewSession: React.FC = () => {
                 </Card>
               </Grid>
             )}
-            
+
             {/* Top Performing Answers */}
             <Grid item xs={12}>
               <Card sx={{ p: 2 }}>
@@ -684,7 +684,7 @@ const InterviewSession: React.FC = () => {
           <Typography variant="h6" color="text.secondary" paragraph>
             Ready to practice your interview skills with our AI interviewer?
           </Typography>
-          
+
           <Card sx={{ mt: 4, p: 4 }}>
             <Typography variant="h5" gutterBottom>
               Interview Details
@@ -694,20 +694,20 @@ const InterviewSession: React.FC = () => {
               {hasResume && <Chip label="Resume-based" color="secondary" size="medium" />}
               <Chip label="AI-Powered" color="primary" size="medium" />
             </Box>
-            
+
             <Typography variant="body1" paragraph>
-              This interview will be conducted by our AI interviewer using a ReadyPlayer.me avatar. 
+              This interview will be conducted by our AI interviewer using a ReadyPlayer.me avatar.
               Your responses will be evaluated in real-time, and you'll receive a detailed feedback report at the end.
             </Typography>
-            
+
             <Alert severity="info" sx={{ mb: 3 }}>
               <Typography variant="body2">
-                • Speak clearly and answer completely for best evaluation results<br/>
-                • Skipping questions will result in score penalties<br/>
+                • Speak clearly and answer completely for best evaluation results<br />
+                • Skipping questions will result in score penalties<br />
                 • All conversations are logged for your review
               </Typography>
             </Alert>
-            
+
             <Button
               variant="contained"
               size="large"
@@ -734,17 +734,17 @@ const InterviewSession: React.FC = () => {
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               <Chip label={`Role: ${jobRole}`} size="small" />
               {hasResume && <Chip label="Resume-based" color="secondary" size="small" />}
-              <Chip 
-                label={`Score: ${Math.round(interviewScore.totalScore)}`} 
-                color={interviewScore.totalScore >= 70 ? 'success' : 'warning'} 
-                size="small" 
+              <Chip
+                label={`Score: ${Math.round(interviewScore.totalScore)}`}
+                color={interviewScore.totalScore >= 70 ? 'success' : 'warning'}
+                size="small"
               />
               <Chip label={`Questions: ${conversationLog.filter(e => e.type === 'question').length}`} size="small" />
             </Box>
           </Box>
-          
+
           <Box sx={{ display: 'flex', gap: 1 }}>
-            <IconButton 
+            <IconButton
               onClick={() => setShowConversationLog(true)}
               color="primary"
               disabled={conversationLog.length === 0}
@@ -797,7 +797,7 @@ const InterviewSession: React.FC = () => {
                 />
               </CardContent>
             </Card>
-            
+
             {/* User Video Feed */}
             <Card sx={{ mb: 3 }}>
               <CardContent>
@@ -840,7 +840,7 @@ const InterviewSession: React.FC = () => {
                 <Typography variant="body1" sx={{ mb: 3, fontSize: '1.1rem', fontWeight: 500 }}>
                   {currentQuestion || 'Ready to start your interview? Press "Start Interview" to begin.'}
                 </Typography>
-                
+
                 {/* Real-time answer display */}
                 {currentAnswer && (
                   <Paper sx={{ p: 2, mb: 2, bgcolor: '#f5f5f5' }}>
@@ -852,7 +852,7 @@ const InterviewSession: React.FC = () => {
                     </Typography>
                   </Paper>
                 )}
-                
+
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                   <Button
                     variant={isRecording ? 'contained' : 'outlined'}
@@ -864,7 +864,7 @@ const InterviewSession: React.FC = () => {
                   >
                     {isRecording ? 'Stop & Submit Answer' : 'Start Answering'}
                   </Button>
-                  
+
                   <Button
                     variant="outlined"
                     color="warning"
@@ -876,7 +876,7 @@ const InterviewSession: React.FC = () => {
                     Skip Question (-15 pts)
                   </Button>
                 </Box>
-                
+
                 {isListening && (
                   <Alert severity="info" sx={{ mt: 2 }}>
                     Listening... Speak clearly into your microphone.
@@ -893,13 +893,13 @@ const InterviewSession: React.FC = () => {
                 <Typography variant="h6" gutterBottom>
                   Interview Score: {Math.round(interviewScore.totalScore)}/100
                 </Typography>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={interviewScore.totalScore} 
+                <LinearProgress
+                  variant="determinate"
+                  value={interviewScore.totalScore}
                   sx={{ height: 10, borderRadius: 5, mb: 2 }}
                   color={interviewScore.totalScore >= 70 ? 'success' : 'warning'}
                 />
-                
+
                 <Grid container spacing={2} sx={{ mt: 1 }}>
                   <Grid item xs={6}>
                     <Typography variant="caption" color="text.secondary">
@@ -920,14 +920,14 @@ const InterviewSession: React.FC = () => {
                 </Grid>
               </CardContent>
             </Card>
-            
+
             {/* Real-time Analysis Panel */}
             <Card sx={{ mb: 2 }}>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
                   Live Performance Analysis
                 </Typography>
-                
+
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="body2" gutterBottom>
                     Confidence Level
@@ -973,7 +973,7 @@ const InterviewSession: React.FC = () => {
                 </Box>
               </CardContent>
             </Card>
-            
+
             {/* Recent Conversation */}
             <Card>
               <CardContent>
@@ -997,8 +997,8 @@ const InterviewSession: React.FC = () => {
                     </Paper>
                   ))}
                 </Box>
-                <Button 
-                  size="small" 
+                <Button
+                  size="small"
                   onClick={() => setShowConversationLog(true)}
                   disabled={conversationLog.length === 0}
                   sx={{ mt: 1 }}
@@ -1009,7 +1009,7 @@ const InterviewSession: React.FC = () => {
             </Card>
           </Grid>
         </Grid>
-        
+
         {/* Conversation Log Dialog */}
         <Dialog open={showConversationLog} onClose={() => setShowConversationLog(false)} maxWidth="md" fullWidth>
           <DialogTitle>
@@ -1026,12 +1026,12 @@ const InterviewSession: React.FC = () => {
                     <ListItemText
                       primary={
                         <Box display="flex" alignItems="center" gap={1}>
-                          <Chip 
-                            label={entry.type.toUpperCase()} 
-                            size="small" 
+                          <Chip
+                            label={entry.type.toUpperCase()}
+                            size="small"
                             color={
-                              entry.type === 'question' ? 'primary' : 
-                              entry.type === 'answer' ? 'success' : 'warning'
+                              entry.type === 'question' ? 'primary' :
+                                entry.type === 'answer' ? 'success' : 'warning'
                             }
                           />
                           {entry.score && (
@@ -1065,7 +1065,7 @@ const InterviewSession: React.FC = () => {
             <Button onClick={() => setShowConversationLog(false)}>Close</Button>
           </DialogActions>
         </Dialog>
-        
+
         {/* Feedback Report */}
         <FeedbackReport />
       </div>
