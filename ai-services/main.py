@@ -2,7 +2,6 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from routes import register_routes, ConnectionManager, gemini_client, groq_client
 import json
 import asyncio
 import logging
@@ -15,18 +14,18 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="AI Interview Prep AI Services")
 
+# Move health check as high as possible to ensure fast response
+@app.get("/health")
+async def health_check():
+    """Simple health check that responds immediately for Railway."""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat()
+    }
+
 @app.get("/")
 async def root():
     return {"message": "AI Interview Prep Services API", "status": "online"}
-
-@app.get("/health")
-async def health_check():
-    return {
-        "status": "healthy",
-        "gemini_api_available": gemini_client.api_available if hasattr(gemini_client, 'api_available') else False,
-        "groq_api_available": groq_client.api_available if hasattr(groq_client, 'api_available') else False,
-        "timestamp": datetime.now().isoformat()
-    }
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,6 +34,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Now import routes and manager
+from routes import register_routes, ConnectionManager
 
 # Initialize connection manager for WebSocket connections
 manager = ConnectionManager()
