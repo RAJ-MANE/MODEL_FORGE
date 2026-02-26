@@ -32,7 +32,7 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "serve": "serve -s build",
+    "serve": "serve -s build -l tcp://0.0.0.0:$PORT",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
