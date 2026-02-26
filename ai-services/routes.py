@@ -15,7 +15,7 @@ load_dotenv()
 import cv2
 import numpy as np
 # mediapipe and librosa removed to speed up deployment
-import google.generativeai as genai
+from google import genai
 import logging
 import json
 from datetime import datetime
@@ -665,8 +665,8 @@ class RealGeminiClient:
         """Initialize Gemini client with API key."""
         api_key = os.getenv('GOOGLE_API_KEY', 'your-api-key-here')
         if api_key and api_key != 'your-api-key-here':
-            genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-2.0-flash')
+            self.client = genai.Client(api_key=api_key)
+            self.model_id = 'gemini-2.0-flash'
             self.api_available = True
         else:
             logger.warning("GOOGLE_API_KEY not set, using fallback question generation")
@@ -689,7 +689,7 @@ class RealGeminiClient:
         if self.api_available:
             try:
                 prompt = self._build_question_prompt(job_role, resume_data, difficulty, category)
-                response = self.model.generate_content(prompt)
+                response = self.client.models.generate_content(model=self.model_id, contents=prompt)
                 question_data = self._parse_question_response(response.text)
                 return {
                     "question": question_data.get("question", f"Tell me about your experience as a {job_role}."),
@@ -722,7 +722,7 @@ class RealGeminiClient:
         if self.api_available:
             try:
                 prompt = self._build_evaluation_prompt(answer_text, question)
-                response = self.model.generate_content(prompt)
+                response = self.client.models.generate_content(model=self.model_id, contents=prompt)
                 return self._parse_evaluation_response(response.text, answer_text)
             except Exception as e:
                 logger.error(f"Gemini evaluation error: {str(e)}")
@@ -1027,7 +1027,7 @@ Return ONLY valid JSON (no markdown code fences):
         
         try:
             prompt = self._build_report_prompt(report_data)
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(model=self.model_id, contents=prompt)
             
             # Parse response
             report_analysis = self._parse_report_response(response.text)
@@ -1061,7 +1061,7 @@ Return ONLY valid JSON (no markdown code fences):
             prompt = self._build_comprehensive_evaluation_prompt(interview_data)
             
             # Use longer timeout for comprehensive evaluation
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(model=self.model_id, contents=prompt)
             
             # Parse the comprehensive evaluation response
             evaluation = self._parse_comprehensive_evaluation_response(response.text)

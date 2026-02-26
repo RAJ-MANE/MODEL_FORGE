@@ -3,7 +3,7 @@ opencv-python-headless>=4.8.0
 numpy>=1.24.0
 
 # Google Gemini API
-google-generativeai>=0.3.0
+google-genai>=0.3.0
 
 # Web framework for API endpoints
 fastapi>=0.103.0

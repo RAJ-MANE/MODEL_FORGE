@@ -1,5 +1,5 @@
 import os
-import google.generativeai as genai
+from google import genai
 from typing import Dict, List, Optional, Any
 import logging
 import json
@@ -14,8 +14,8 @@ class GeminiClient:
         if not api_key:
             raise ValueError("GOOGLE_API_KEY environment variable is required")
         
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-2.0-flash')
+        self.client = genai.Client(api_key=api_key)
+        self.model_id = 'gemini-2.0-flash'
         
         # Interview question templates and contexts
         self.question_categories = {
@@ -58,7 +58,7 @@ class GeminiClient:
         try:
             prompt = self._build_question_prompt(category, job_role, difficulty, context, resume_data)
             
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(model=self.model_id, contents=prompt)
             
             # Parse the response
             question_data = self._parse_question_response(response.text)
@@ -96,7 +96,7 @@ class GeminiClient:
         try:
             prompt = self._build_followup_prompt(original_question, user_response, analysis_results)
             
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(model=self.model_id, contents=prompt)
             
             return {
                 "follow_up_question": response.text.strip(),
@@ -156,7 +156,7 @@ class GeminiClient:
             }}
             """
             
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(model=self.model_id, contents=prompt)
             scenario_data = json.loads(response.text.strip())
             
             scenario_data["generated_at"] = datetime.now().isoformat()
@@ -211,7 +211,7 @@ class GeminiClient:
             }}
             """
             
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(model=self.model_id, contents=prompt)
             feedback_data = json.loads(response.text.strip())
             
             feedback_data["analyzed_at"] = datetime.now().isoformat()
@@ -262,7 +262,7 @@ class GeminiClient:
             Focus on extracting information that would be relevant for a {job_role} interview.
             """
             
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(model=self.model_id, contents=prompt)
             analysis_data = json.loads(response.text.strip())
             
             analysis_data["analyzed_at"] = datetime.now().isoformat()
