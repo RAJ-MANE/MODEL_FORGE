@@ -14,14 +14,13 @@ from dotenv import load_dotenv
 load_dotenv()
 import cv2
 import numpy as np
-import mediapipe as mp
-import librosa
+# mediapipe and librosa removed to speed up deployment
 import google.generativeai as genai
 import logging
 import json
 from datetime import datetime
 import datetime as dt # For internal use if needed
-from sklearn.preprocessing import StandardScaler
+# scikit-learn removed to speed up deployment
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -313,7 +312,7 @@ class RealVoiceAnalyzer:
     def __init__(self):
         """Initialize voice analyzer."""
         self.sample_rate = 22050
-        self.scaler = StandardScaler()
+        # self.scaler = StandardScaler() - removed unused dependency
         
     def analyze_audio(self, audio_bytes):
         """Analyze voice characteristics from audio data."""

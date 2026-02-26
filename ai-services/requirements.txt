@@ -1,13 +1,6 @@
 # Core AI and Machine Learning libraries
-opencv-python>=4.8.0
+opencv-python-headless>=4.8.0
 numpy>=1.24.0
-pandas>=2.0.0
-scikit-learn>=1.3.0
-
-# Audio Processing for Voice Analysis
-librosa>=0.10.0
-soundfile>=0.12.0
-pydub>=0.25.0
 
 # Google Gemini API
 google-generativeai>=0.3.0
@@ -21,6 +14,6 @@ wsproto>=1.2.0
 
 # Utilities
 python-dotenv>=1.0.0
-requests>=2.31.0
+# pillow is used for Image in routes.py
 pillow>=10.0.0
 groq>=0.4.0
