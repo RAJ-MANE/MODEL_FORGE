@@ -42,6 +42,9 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
+app.get('/', (req, res) => {
+    res.status(200).json({ status: 'online', message: 'API is running' });
+});
 app.get('/health', async (req, res) => {
     let aiStatus = 'offline';
     let aiDetails = null;
