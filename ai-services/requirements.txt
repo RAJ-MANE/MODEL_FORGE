@@ -14,6 +14,7 @@ wsproto>=1.2.0
 
 # Utilities
 python-dotenv>=1.0.0
+python-multipart>=0.0.6
 # pillow is used for Image in routes.py
 pillow>=10.0.0
 groq>=0.4.0
