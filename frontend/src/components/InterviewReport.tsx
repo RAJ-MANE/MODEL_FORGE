@@ -111,7 +111,15 @@ const InterviewReport: React.FC = () => {
   };
 
   const generateComprehensiveEvaluation = async (interviewData: any): Promise<InterviewReportData> => {
-    const aiServiceUrl = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const getBaseUrl = (url: string) => {
+      if (!url) return 'http://localhost:8001';
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        return `https://${url}`;
+      }
+      return url;
+    };
+
+    const aiServiceUrl = getBaseUrl(process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001');
     const evaluationData = {
       sessionId: interviewData.sessionId,
       job_role: interviewData.jobRole || 'Software Developer',

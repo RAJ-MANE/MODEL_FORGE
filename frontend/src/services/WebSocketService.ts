@@ -25,7 +25,13 @@ class WebSocketService {
   connect(sessionId: string): Promise<boolean> {
     this.sessionId = sessionId;
     // Derive WebSocket URL from the HTTP AI service URL (http→ws, https→wss)
-    const httpUrl = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    let httpUrl = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+
+    // Robustness check: if protocol is missing, prepend https://
+    if (!httpUrl.startsWith('http://') && !httpUrl.startsWith('https://')) {
+      httpUrl = `https://${httpUrl}`;
+    }
+
     const wsUrl = httpUrl.replace(/^http/, 'ws') + `/ws/live-analysis/${sessionId}`;
 
     return new Promise((resolve) => {

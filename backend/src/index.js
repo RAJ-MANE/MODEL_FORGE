@@ -49,8 +49,16 @@ app.get('/health', async (req, res) => {
     let aiStatus = 'offline';
     let aiDetails = null;
 
+    const getAiServiceUrl = () => {
+        let url = process.env.AI_SERVICE_URL || 'http://localhost:8001';
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            url = `https://${url}`;
+        }
+        return url;
+    };
+
     try {
-        const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8001';
+        const aiServiceUrl = getAiServiceUrl();
         const response = await fetch(`${aiServiceUrl}/health`);
         if (response.ok) {
             aiDetails = await response.json();
@@ -384,7 +392,7 @@ io.on('connection', (socket) => {
             // Call AI services for question generation
             let questionData;
             try {
-                const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8001';
+                const aiServiceUrl = getAiServiceUrl();
 
                 // Enhanced prompt for personalized questions
                 const enhancedResumeData = resumeData ? {
@@ -461,7 +469,7 @@ io.on('connection', (socket) => {
 
                 // Call AI service for response evaluation
                 try {
-                    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8001';
+                    const aiServiceUrl = getAiServiceUrl();
                     const evalResponse = await fetch(`${aiServiceUrl}/evaluate/answer?answer_text=${encodeURIComponent(response)}&question=${encodeURIComponent(question || session.currentQuestion?.question || '')}&session_id=${sessionId}`, {
                         method: 'POST',
                         headers: {
@@ -661,7 +669,7 @@ app.post('/api/generate-question', async (req, res) => {
 
         let questionData;
         try {
-            const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8001';
+            const aiServiceUrl = getAiServiceUrl();
             const response = await fetch(`${aiServiceUrl}/generate/question`, {
                 method: 'POST',
                 headers: {
@@ -718,7 +726,7 @@ app.post('/api/evaluate-response', async (req, res) => {
 
         // Call AI service for response evaluation
         try {
-            const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8001';
+            const aiServiceUrl = getAiServiceUrl();
             const evalResponse = await fetch(`${aiServiceUrl}/evaluate/answer?answer_text=${encodeURIComponent(response)}&question=${encodeURIComponent(question || '')}&session_id=${sessionId}`, {
                 method: 'POST',
                 headers: {
@@ -792,7 +800,7 @@ app.post('/api/generate-report', async (req, res) => {
 
         // Call AI service for report generation
         try {
-            const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8001';
+            const aiServiceUrl = getAiServiceUrl();
             const reportResponse = await fetch(`${aiServiceUrl}/generate/report`, {
                 method: 'POST',
                 headers: {
