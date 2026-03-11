@@ -7,11 +7,6 @@ import {
     AutoFixHigh,
     QuestionAnswer,
     AttachMoney,
-    Translate,
-    RecordVoiceOver,
-    Mic,
-    TextFields,
-    Language,
 } from '@mui/icons-material';
 
 interface ToolCardProps {

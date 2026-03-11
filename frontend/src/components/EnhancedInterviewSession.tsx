@@ -20,7 +20,6 @@ import {
   Videocam,
   VideocamOff,
   Psychology,
-  VolumeUp,
   Replay,
 } from '@mui/icons-material';
 import Webcam from 'react-webcam';
@@ -50,7 +49,7 @@ const EnhancedInterviewSession: React.FC = () => {
   const [interviewStarted, setInterviewStarted] = useState(false);
   const [questionStartTime, setQuestionStartTime] = useState<Date | null>(null);
   const [currentQuestionNumber, setCurrentQuestionNumber] = useState(0);
-  const [interviewLanguage, setInterviewLanguage] = useState(langParam);
+  const [interviewLanguage] = useState(langParam);
   const [questionAudioUrl, setQuestionAudioUrl] = useState<string | null>(null);
   const [translatedQuestion, setTranslatedQuestion] = useState<string | null>(null);
   const questionAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -89,7 +88,7 @@ const EnhancedInterviewSession: React.FC = () => {
   const MAX_QUESTIONS = 5;
 
   // Avatar only — no browser TTS to avoid clash. LipSyncAvatar handles all speech.
-  const [avatarReady, setAvatarReady] = useState(false);
+  const [, setAvatarReady] = useState(false);
   useEffect(() => {
     if (!interviewStarted) return;
     window.speechSynthesis?.cancel();

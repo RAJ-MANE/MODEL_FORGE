@@ -17,10 +17,13 @@ app = FastAPI(title="AI Interview Prep AI Services")
 # Move health check as high as possible to ensure fast response
 @app.get("/health")
 async def health_check():
-    """Simple health check that responds immediately for Railway."""
+    """Detailed health check for the backend."""
+    from routes import gemini_client, groq_client
     return {
         "status": "healthy",
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "gemini_api_available": gemini_client.api_available,
+        "groq_api_available": groq_client.api_available
     }
 
 @app.get("/")

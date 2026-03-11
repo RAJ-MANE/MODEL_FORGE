@@ -1,0 +1,25 @@
+
+> ai-interview-prep-frontend@0.1.0 build
+> react-scripts build
+
+Creating an optimized production build...
+
+Treating warnings as errors because process.env.CI = true.
+Most CI servers set it automatically.
+
+Failed to compile.
+
+[eslint] 
+src\components\EnhancedInterviewSession.tsx
+  Line 23:3:   'VolumeUp' is defined but never used                       @typescript-eslint/no-unused-vars
+  Line 53:29:  'setInterviewLanguage' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  Line 92:10:  'avatarReady' is assigned a value but never used           @typescript-eslint/no-unused-vars
+
+src\components\tools\ToolsPage.tsx
+  Line 10:5:  'Translate' is defined but never used        @typescript-eslint/no-unused-vars
+  Line 11:5:  'RecordVoiceOver' is defined but never used  @typescript-eslint/no-unused-vars
+  Line 12:5:  'Mic' is defined but never used              @typescript-eslint/no-unused-vars
+  Line 13:5:  'TextFields' is defined but never used       @typescript-eslint/no-unused-vars
+  Line 14:5:  'Language' is defined but never used         @typescript-eslint/no-unused-vars
+
+

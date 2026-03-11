@@ -1,0 +1,80 @@
+
+> ai-interview-prep-frontend@0.1.0 build
+> react-scripts build
+
+node.exe : 
+[baseline-browser-mapping] 
+The data in this module is 
+over two months old.  To 
+ensure accurate Baseline 
+data, please update: `npm 
+i baseline-browser-mapping@
+latest -D`
+At C:\Program 
+Files\nodejs\npm.ps1:29 
+char:3
++   & $NODE_EXE 
+$NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~
+    + CategoryInfo         
+     : NotSpecified: ([ba  
+  seline-brows...ping@la   
+ test -D`:String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+Creating an optimized production build...
+Browserslist: browsers 
+data (caniuse-lite) is 6 
+months old. Please run:
+  npx update-browserslist-d
+b@latest
+  Why you should do it 
+regularly: https://github.c
+om/browserslist/update-db#r
+eadme
+[baseline-browser-mapping] 
+The data in this module is 
+over two months old.  To 
+ensure accurate Baseline 
+data, please update: `npm 
+i baseline-browser-mapping@
+latest -D`
+Browserslist: browsers 
+data (caniuse-lite) is 6 
+months old. Please run:
+  npx update-browserslist-d
+b@latest
+  Why you should do it 
+regularly: https://github.c
+om/browserslist/update-db#r
+eadme
+
+Treating warnings as errors because process.env.CI = true.
+Most CI servers set it automatically.
+
+Failed to compile.
+
+[eslint] 
+src\components\EnhancedInterviewSession.tsx
+  Line 52:29:  'setInterviewLanguage' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  Line 91:10:  'avatarReady' is assigned a value but never used           @typescript-eslint/no-unused-vars
+
+
+npm error Lifecycle script 
+`build` failed with error:
+npm error code 1
+npm error path C:\Users\Lab
+306-28\Desktop\FORGE\MODEL_
+FORGE\frontend
+npm error workspace ai-inte
+rview-prep-frontend@0.1.0
+npm error location C:\Users
+\Lab306-28\Desktop\FORGE\MO
+DEL_FORGE\frontend
+npm error command failed
+npm error command C:\WINDOW
+S\system32\cmd.exe /d /s 
+/c react-scripts build
