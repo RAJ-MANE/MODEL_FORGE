@@ -20,9 +20,12 @@ import {
   Videocam,
   VideocamOff,
   Psychology,
+  VolumeUp,
+  Replay,
 } from '@mui/icons-material';
 import Webcam from 'react-webcam';
 import LiveAnalysisDisplay from './LiveAnalysisDisplay';
+import LipSyncAvatar from './LipSyncAvatar';
 import webSocketService from '../services/WebSocketService';
 import {
   InterviewScore,
@@ -35,6 +38,8 @@ const EnhancedInterviewSession: React.FC = () => {
 
   const jobRole = searchParams.get('role') || 'Software Developer';
   const hasResume = searchParams.get('hasResume') === 'true';
+  const avatarSpeechEnabled = searchParams.get('avatarSpeech') !== 'false'; // default true
+  const langParam = searchParams.get('lang') || 'en-IN';
 
   // State
   const [currentQuestion, setCurrentQuestion] = useState('');
@@ -45,6 +50,10 @@ const EnhancedInterviewSession: React.FC = () => {
   const [interviewStarted, setInterviewStarted] = useState(false);
   const [questionStartTime, setQuestionStartTime] = useState<Date | null>(null);
   const [currentQuestionNumber, setCurrentQuestionNumber] = useState(0);
+  const [interviewLanguage, setInterviewLanguage] = useState(langParam);
+  const [questionAudioUrl, setQuestionAudioUrl] = useState<string | null>(null);
+  const [translatedQuestion, setTranslatedQuestion] = useState<string | null>(null);
+  const questionAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Live analysis data
   const [facialAnalysisData, setFacialAnalysisData] = useState<any>(null);
@@ -79,64 +88,105 @@ const EnhancedInterviewSession: React.FC = () => {
 
   const MAX_QUESTIONS = 5;
 
-  // ── Text-to-Speech: speak each new question aloud ─────────────────
-  const speakQuestion = (text: string) => {
-    if (!text || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel(); // stop any previous speech
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 0.92;
-    utter.pitch = 1.05;
-    utter.volume = 1;
-    // Prefer a natural English voice if available
-    const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v =>
-      v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Daniel'))
-    ) || voices.find(v => v.lang.startsWith('en'));
-    if (preferred) utter.voice = preferred;
-    window.speechSynthesis.speak(utter);
+  // Avatar only — no browser TTS to avoid clash. LipSyncAvatar handles all speech.
+  const [avatarReady, setAvatarReady] = useState(false);
+  useEffect(() => {
+    if (!interviewStarted) return;
+    window.speechSynthesis?.cancel();
+  }, [interviewStarted]);
+
+  // Speak question aloud using Sarvam TTS (used only for regional languages)
+  const speakQuestion = useCallback(async (questionText: string) => {
+    if (!questionText) return;
+    // Skip Sarvam TTS for English mode — avatar handles speech
+    if (avatarSpeechEnabled) return;
+    try {
+      const aiServiceUrl = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+      const resp = await fetch(`${aiServiceUrl}/api/tools/speak-question`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: questionText,
+          language_code: interviewLanguage,
+          speaker: 'shubh',
+          pace: 0.9,
+        }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        // Display translated text in the selected language
+        if (data.translated_text) {
+          setTranslatedQuestion(data.translated_text);
+        }
+        if (data.audios && data.audios.length > 0) {
+          const audioBase64 = data.audios[0];
+          const audioUrl = `data:audio/wav;base64,${audioBase64}`;
+          setQuestionAudioUrl(audioUrl);
+          // Auto play
+          if (questionAudioRef.current) {
+            questionAudioRef.current.src = audioUrl;
+            questionAudioRef.current.play().catch(() => { });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Sarvam TTS unavailable, displaying text only:', err);
+    }
+  }, [interviewLanguage, avatarSpeechEnabled]);
+
+  // Stricter scoring: zero for absurd/non-answers; no free marks for "I don't know"
+  const ABSURD_PATTERNS = /\b(i\s*don'?t\s*know|i\s*dunno|no\s*idea|not\s*sure|nothing\s*really|can'?t\s*remember|pass|skip|nothing|idk|dunno)\b/i;
+  const isAbsurdOrNonAnswer = (text: string) => {
+    const t = text.trim().toLowerCase();
+    if (t.length < 4) return true;
+    if (ABSURD_PATTERNS.test(t)) return true;
+    if (/^(um|uh|eh|no|yes|maybe|probably)\s*\.?$/i.test(t)) return true;
+    return false;
   };
 
-  useEffect(() => {
-    if (interviewStarted && currentQuestion) {
-      speakQuestion(currentQuestion);
-    }
-    return () => { window.speechSynthesis?.cancel(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQuestion, interviewStarted]);
-
-  // Realistic scoring algorithm based on multiple factors
   const calculateRealisticScore = (answer: string, responseTime: number, question: string) => {
     const trimmedAnswer = answer.trim();
-    const words = trimmedAnswer.split(/\s+/).filter(word => word.length > 1); // Filter out single chars
+    const words = trimmedAnswer.split(/\s+/).filter(word => word.length > 1);
     const wordCount = words.length;
     const sentenceCount = trimmedAnswer.split(/[.!?]+/).filter(s => s.trim().length > 2).length;
     const avgWordsPerSentence = sentenceCount > 0 ? wordCount / sentenceCount : 0;
 
-    // IMMEDIATE FAIL CONDITIONS - These should result in very low scores
-    if (wordCount === 0 || trimmedAnswer.length < 3) {
+    // ZERO MARKS: absurd or non-answers (I don't know, no idea, pass, etc.)
+    if (isAbsurdOrNonAnswer(trimmedAnswer)) {
       return {
         score: 0,
-        feedback: 'No meaningful response provided. Please answer the question with specific details.',
+        feedback: 'No marks awarded. This was not a substantive answer. Avoid responses like "I don\'t know" or "no idea"—offer what you do know or how you would find out.',
         strengths: [],
-        improvements: ['Provide a complete answer to the question', 'Use specific examples from your experience', 'Speak clearly and confidently']
+        improvements: ['Give a structured attempt using what you know', 'Use the STAR method', 'If unsure, explain how you would approach the problem']
       };
     }
 
+    // ZERO or near-zero: empty or trivial
+    if (wordCount === 0 || trimmedAnswer.length < 5) {
+      return {
+        score: 0,
+        feedback: 'No meaningful response provided. Answer with specific details and examples.',
+        strengths: [],
+        improvements: ['Provide a complete answer', 'Use specific examples', 'Speak clearly and confidently']
+      };
+    }
+
+    // Very strict: very short answers get 0–8 only
     if (wordCount < 5) {
       return {
-        score: Math.floor(Math.random() * 10) + 5, // 5-15 points for minimal effort
-        feedback: 'Response is too brief and lacks substance. Elaborate with specific examples.',
-        strengths: ['Attempted to answer'],
-        improvements: ['Provide much more detail', 'Include specific examples', 'Explain your thought process', 'Use the STAR method (Situation, Task, Action, Result)']
+        score: Math.min(8, wordCount * 2),
+        feedback: 'Response is too brief. No marks for minimal effort—elaborate with examples.',
+        strengths: [],
+        improvements: ['Provide much more detail', 'Include specific examples', 'Use the STAR method']
       };
     }
 
     if (wordCount < 15) {
       return {
-        score: Math.floor(Math.random() * 20) + 10, // 10-30 points for short answers
-        feedback: 'Response needs significant development. Add more detail and examples.',
-        strengths: wordCount > 8 ? ['Provided a basic answer'] : [],
-        improvements: ['Expand your answer with more detail', 'Include specific examples', 'Explain the impact of your actions']
+        score: Math.min(25, 5 + wordCount),
+        feedback: 'Response needs significant development. Add detail and concrete examples.',
+        strengths: wordCount > 10 ? ['Brief attempt'] : [],
+        improvements: ['Expand with more detail', 'Include specific examples', 'Explain impact of your actions']
       };
     }
 
@@ -174,11 +224,13 @@ const EnhancedInterviewSession: React.FC = () => {
       const avgEngagement = recentFacial.reduce((sum, entry) => sum + (entry.data.engagement || 0), 0) / recentFacial.length;
       const avgEyeContact = recentFacial.reduce((sum, entry) => sum + (entry.data.eye_contact || 0), 0) / recentFacial.length;
 
-      // Only award points if metrics are actually good
-      if (avgConfidence > 0.6) nonverbalScore += 5;
-      if (avgEngagement > 0.6) nonverbalScore += 5;
-      if (avgEyeContact > 0.6) nonverbalScore += 5;
-      nonverbalScore = Math.round(nonverbalScore);
+      // Stricter non-verbal: only award points for good metrics; eye contact weighted more
+      if (avgConfidence > 0.65) nonverbalScore += 4;
+      if (avgEngagement > 0.65) nonverbalScore += 4;
+      if (avgEyeContact > 0.7) nonverbalScore += 7;
+      else if (avgEyeContact > 0.5) nonverbalScore += 3;
+      else if (avgEyeContact < 0.4) nonverbalScore -= 5; // Penalty for poor eye contact
+      nonverbalScore = Math.max(0, Math.round(nonverbalScore));
     }
 
     // Start with ZERO base score - must earn every point
@@ -194,10 +246,7 @@ const EnhancedInterviewSession: React.FC = () => {
     if (hasSTARStructure && wordCount >= 40) totalScore += 10;
     if (technicalTerms >= 2 && wordCount >= 35) totalScore += 5;
 
-    // Additional penalties for poor quality
-    if (trimmedAnswer.toLowerCase().includes('i dont know') || trimmedAnswer.toLowerCase().includes('not sure')) {
-      totalScore = Math.floor(totalScore * 0.7); // 30% penalty for uncertainty
-    }
+    // No additional penalty here—absurd answers already get 0 earlier
 
     if (trimmedAnswer.split(' ').filter(word => word === word.toLowerCase()).length > wordCount * 0.8) {
       totalScore -= 5; // Penalty for no capitalization (shows lack of care)
@@ -217,12 +266,16 @@ const EnhancedInterviewSession: React.FC = () => {
     const strengths = [];
     const improvements = [];
 
-    // Only give strengths credit for genuinely good performance
+    // Only give strengths for genuinely good performance (stricter)
     if (hasSpecificExamples && wordCount >= 25) strengths.push('Used specific examples to support your answer');
     if (hasQuantifiableResults && wordCount >= 20) strengths.push('Included measurable results and impact');
     if (hasSTARStructure && wordCount >= 30) strengths.push('Followed a structured approach (STAR method)');
     if (wordCount >= 50 && clarityScore >= 20) strengths.push('Provided comprehensive and detailed response');
     if (nonverbalScore >= 10) strengths.push('Demonstrated confidence through body language');
+    if (nonverbalScore >= 7 && analysisHistory.facial.length > 0) {
+      const recentEye = analysisHistory.facial.slice(-10).reduce((s, e) => s + (e.data?.eye_contact ?? 0), 0) / 10;
+      if (recentEye >= 0.6) strengths.push('Good eye contact during the response');
+    }
     if (technicalTerms >= 2) strengths.push('Used relevant technical terminology effectively');
     if (timingScore >= 10) strengths.push('Took appropriate time to think through the response');
 
@@ -235,6 +288,10 @@ const EnhancedInterviewSession: React.FC = () => {
     if (responseTime < 10) improvements.push('Take more time to think and plan your response');
     if (responseTime > 150) improvements.push('Work on being more concise while maintaining detail');
     if (nonverbalScore < 5) improvements.push('Maintain better eye contact and show more engagement');
+    if (analysisHistory.facial.length > 0) {
+      const avgEye = analysisHistory.facial.slice(-10).reduce((s, e) => s + (e.data?.eye_contact ?? 0), 0) / Math.max(1, analysisHistory.facial.slice(-10).length);
+      if (avgEye < 0.45) improvements.push('Look at the camera more—low eye contact was noted and affects your score');
+    }
     if (technicalTerms === 0 && wordCount > 15) improvements.push('Include more specific technical terminology relevant to the role');
 
     // Ensure there's always constructive feedback
@@ -593,6 +650,11 @@ const EnhancedInterviewSession: React.FC = () => {
         const questionData = await response.json();
         setCurrentQuestion(questionData.question);
         setQuestionStartTime(new Date());
+        setQuestionAudioUrl(null);
+        setTranslatedQuestion(null);
+        if (!avatarSpeechEnabled) { // Only speak question aloud if avatar speech is disabled
+          speakQuestion(questionData.question);
+        }
         console.log('✅ Question generated via API:', questionData.question.substring(0, 100) + '...');
       } else {
         const errorText = await response.text();
@@ -613,6 +675,10 @@ const EnhancedInterviewSession: React.FC = () => {
       const fallbackQ = fallbackQuestions[(currentQuestionNumber - 1) % fallbackQuestions.length];
       setCurrentQuestion(fallbackQ);
       setQuestionStartTime(new Date());
+      setQuestionAudioUrl(null);
+      if (!avatarSpeechEnabled) { // Only speak question aloud if avatar speech is disabled
+        speakQuestion(fallbackQ);
+      }
       console.warn('Using offline fallback question due to API error');
     }
   };
@@ -824,12 +890,10 @@ const EnhancedInterviewSession: React.FC = () => {
       const evaluation = await evaluateResponse(currentAnswer, responseTime, voiceAnalysisData);
       updateScoreWithEvaluation(evaluation, responseTime);
 
-      // Proceed to next question or end interview
-      proceedToNextStep();
+      proceedToNextStep(evaluation, currentQuestion, currentAnswer);
 
     } catch (error) {
       console.error('Error processing audio and transcript:', error);
-      // Fallback to transcript-only evaluation
       processTranscriptOnly();
     }
   };
@@ -838,15 +902,52 @@ const EnhancedInterviewSession: React.FC = () => {
     const responseTime = questionStartTime ? (new Date().getTime() - questionStartTime.getTime()) / 1000 : 0;
     const evaluation = calculateRealisticScore(currentAnswer, responseTime, currentQuestion);
     updateScoreWithEvaluation(evaluation, responseTime);
-    proceedToNextStep();
+    proceedToNextStep(evaluation, currentQuestion, currentAnswer);
   };
 
-  const proceedToNextStep = () => {
+  const requestFollowUpQuestion = async (originalQuestion: string, userResponse: string): Promise<string | null> => {
+    const aiServiceUrl = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    try {
+      const res = await fetch(`${aiServiceUrl}/generate/follow-up`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          original_question: originalQuestion,
+          user_response: userResponse,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.follow_up_question || null;
+      }
+    } catch (e) {
+      console.warn('Follow-up request failed', e);
+    }
+    return null;
+  };
+
+  const proceedToNextStep = (evaluation?: { score?: number }, lastQuestion?: string, lastAnswer?: string) => {
+    const questionForFollowUp = lastQuestion ?? currentQuestion;
+    const answerForFollowUp = (lastAnswer ?? currentAnswer).trim();
     setCurrentAnswer('');
     setAudioChunks([]);
 
-    // Check if interview should end
     const totalQuestions = interviewScore.questionsAnswered + 1 + interviewScore.questionsSkipped;
+    const score = evaluation?.score ?? 0;
+    const askFollowUp = score < 25 && totalQuestions <= MAX_QUESTIONS;
+
+    if (askFollowUp) {
+      requestFollowUpQuestion(questionForFollowUp, answerForFollowUp).then((followUp) => {
+        if (followUp) {
+          setCurrentQuestion(followUp);
+          setQuestionStartTime(new Date());
+        } else {
+          setTimeout(generateNewQuestion, 1500);
+        }
+      });
+      return;
+    }
+
     if (totalQuestions >= MAX_QUESTIONS) {
       setTimeout(endInterview, 2000);
     } else {
@@ -889,8 +990,20 @@ const EnhancedInterviewSession: React.FC = () => {
   };
 
   const updateScoreWithEvaluation = (evaluation: any, responseTime: number) => {
-    // Use the actual evaluation score - no generous defaults!
-    const score = evaluation.score || 0; // If no score provided, default to 0
+    let score = evaluation.score ?? 0;
+
+    // Enhance scoring with eye contact: apply multiplier from recent facial analysis
+    const recentFacial = analysisHistory.facial.slice(-15);
+    if (recentFacial.length > 0) {
+      const avgEyeContact = recentFacial.reduce((sum, e) => sum + (e.data?.eye_contact ?? 0), 0) / recentFacial.length;
+      if (avgEyeContact < 0.35) {
+        score = Math.max(0, Math.floor(score * 0.7)); // 30% penalty for very low eye contact
+      } else if (avgEyeContact < 0.5) {
+        score = Math.max(0, Math.floor(score * 0.85)); // 15% penalty for low eye contact
+      } else if (avgEyeContact >= 0.75) {
+        score = Math.min(100, Math.floor(score * 1.05)); // Small bonus for strong eye contact
+      }
+    }
 
     // Store response data for comprehensive analysis
     setAnalysisHistory(prev => ({
@@ -907,9 +1020,7 @@ const EnhancedInterviewSession: React.FC = () => {
     // Calculate realistic cumulative score
     setInterviewScore(prev => {
       const newQuestionsAnswered = prev.questionsAnswered + 1;
-
-      // Each question is worth up to 20 points (100 total / 5 questions)
-      const questionValue = score * 0.20; // Convert 100-point scale to 20-point scale
+      const questionValue = score * 0.20;
       const newTotalScore = prev.totalScore + questionValue;
 
       return {
@@ -950,17 +1061,16 @@ const EnhancedInterviewSession: React.FC = () => {
       const newQuestionsSkipped = prev.questionsSkipped + 1;
       const newTotalQuestions = prev.questionsAnswered + newQuestionsSkipped;
 
-      // Skipping severely damages interview performance
-      // Each skip: 0 points + penalty based on skip frequency
-      const skipPenalty = calculateSkipPenalty(newQuestionsSkipped, newTotalQuestions);
-      let newTotalScore = Math.max(0, prev.totalScore - skipPenalty);
-
-      // Auto-fail for excessive skipping
-      const skipRate = newQuestionsSkipped / newTotalQuestions;
-      if (skipRate >= 0.6) { // Failing 3+ out of 5 questions
-        newTotalScore = Math.min(newTotalScore, 15); // Cap at very low score
-      } else if (skipRate >= 0.4) { // Skipping 2+ out of 5 questions  
-        newTotalScore = Math.min(newTotalScore, 35); // Cap at poor score
+      // If they only skipped (no answers), score must stay 0
+      let newTotalScore = prev.totalScore;
+      if (prev.questionsAnswered === 0) {
+        newTotalScore = 0; // No points earned; all skips = 0
+      } else {
+        const skipPenalty = calculateSkipPenalty(newQuestionsSkipped, newTotalQuestions);
+        newTotalScore = Math.max(0, prev.totalScore - skipPenalty);
+        const skipRate = newQuestionsSkipped / newTotalQuestions;
+        if (skipRate >= 0.6) newTotalScore = Math.min(newTotalScore, 15);
+        else if (skipRate >= 0.4) newTotalScore = Math.min(newTotalScore, 35);
       }
 
       return {
@@ -1090,6 +1200,22 @@ const EnhancedInterviewSession: React.FC = () => {
           <Grid item xs={12} lg={8}>
             <Stack spacing={3}>
 
+              {/* Lip-sync avatar: speaks the current AI-generated question (one at a time) */}
+              <Card sx={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 3, overflow: 'hidden' }}>
+                <CardContent sx={{ p: 0 }}>
+                  <Box sx={{ p: 1.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <Typography variant="subtitle2" fontWeight={700} color="rgba(255,255,255,0.7)">
+                      Interviewer — speak with a human avatar
+                    </Typography>
+                  </Box>
+                  <LipSyncAvatar
+                    question={avatarSpeechEnabled ? (currentQuestion || null) : null}
+                    onReady={setAvatarReady}
+                    minHeight={420}
+                  />
+                </CardContent>
+              </Card>
+
               {/* Question Card */}
               <Card sx={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 3, backdropFilter: 'blur(10px)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
                 <CardContent sx={{ p: 3 }}>
@@ -1117,7 +1243,7 @@ const EnhancedInterviewSession: React.FC = () => {
                   <Typography
                     variant="h6"
                     sx={{
-                      lineHeight: 1.7, mb: 3, p: 3,
+                      lineHeight: 1.7, mb: (!avatarSpeechEnabled && translatedQuestion) ? 1 : 3, p: 3,
                       background: 'rgba(99,102,241,0.07)',
                       borderRadius: 2,
                       borderLeft: '4px solid #6366f1',
@@ -1126,8 +1252,47 @@ const EnhancedInterviewSession: React.FC = () => {
                       animation: 'slide-in 0.4s ease-out',
                     }}
                   >
-                    {currentQuestion}
+                    {!avatarSpeechEnabled && translatedQuestion ? translatedQuestion : currentQuestion}
                   </Typography>
+
+                  {/* Show English original below translated question */}
+                  {!avatarSpeechEnabled && translatedQuestion && (
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        mb: 3, px: 3,
+                        color: 'rgba(255,255,255,0.35)',
+                        fontStyle: 'italic',
+                        fontSize: '0.85rem',
+                      }}
+                    >
+                      {currentQuestion}
+                    </Typography>
+                  )}
+
+                  {/* Hidden audio element for Sarvam TTS */}
+                  <audio ref={questionAudioRef} style={{ display: 'none' }} />
+
+                  {/* TTS Replay Button */}
+                  {questionAudioUrl && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          if (questionAudioRef.current) {
+                            questionAudioRef.current.currentTime = 0;
+                            questionAudioRef.current.play().catch(() => { });
+                          }
+                        }}
+                        sx={{ color: '#818cf8', bgcolor: 'rgba(129,140,248,0.1)', '&:hover': { bgcolor: 'rgba(129,140,248,0.2)' } }}
+                      >
+                        <Replay fontSize="small" />
+                      </IconButton>
+                      <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)' }}>
+                        Replay question audio
+                      </Typography>
+                    </Box>
+                  )}
 
                   {/* Transcribed answer */}
                   {currentAnswer && (
@@ -1162,21 +1327,22 @@ const EnhancedInterviewSession: React.FC = () => {
                     </Button>
                   </Stack>
 
-                  {/* Action buttons */}
+                  {/* Action buttons: Next Question advances and avatar speaks the next one */}
                   <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', gap: 1 }}>
                     <Button
-                      variant="outlined"
+                      variant="contained"
                       onClick={skipQuestion}
                       disabled={isRecording || !currentQuestion}
                       startIcon={<SkipNext />}
                       size="large"
                       sx={{
-                        borderRadius: '50px', fontWeight: 600,
-                        borderColor: 'rgba(245,158,11,0.4)', color: '#f59e0b',
-                        '&:hover': { borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)' },
+                        borderRadius: '50px', fontWeight: 700,
+                        background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                        boxShadow: '0 4px 14px rgba(139,92,246,0.4)',
+                        '&:hover': { background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)' },
                       }}
                     >
-                      Skip Question
+                      Next Question
                     </Button>
                     <Button
                       variant="outlined"

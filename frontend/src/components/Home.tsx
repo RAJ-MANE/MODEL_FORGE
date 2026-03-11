@@ -1,108 +1,119 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  Box,
-  Container,
-  Typography,
-  Button,
-  Card,
-  Grid,
-  TextField,
-  Stack,
-  Chip,
-  Avatar,
-} from '@mui/material';
-import {
-  Psychology,
-  VideoCall,
-  Mic,
-  Assessment,
-  WorkOutline,
-  ArrowForward,
-  FaceRetouchingNatural,
-  GraphicEq,
-  AutoAwesome,
-  TrendingUp,
-  Speed,
-  EmojiEvents,
-  KeyboardArrowDown,
-  BarChart,
-} from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
+import { motion, useScroll, useTransform } from 'framer-motion';
+import { Canvas } from '@react-three/fiber';
+import {
+  ArrowRight,
+  BrainCircuit,
+  Eye,
+  Mic2,
+  Sparkles,
+  ChevronRight,
+  ChevronDown,
+  Globe,
+} from 'lucide-react';
+import { TextField, Chip, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
+import { TrendingUp, WorkOutline } from '@mui/icons-material';
+
 import ResumeUpload from './ResumeUpload';
 import NavigationHeader from './NavigationHeader';
+import { AnimatedBackground } from './home/AnimatedBackground';
 
-// Hook to detect when element enters viewport
-const useIntersectionObserver = (threshold = 0.2) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-        }
-      },
-      { threshold }
-    );
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, [threshold]);
-
-  return { ref, isVisible };
-};
-
-// Animated counter component
-const AnimatedCounter: React.FC<{ end: number; suffix?: string; prefix?: string; duration?: number }> = ({
-  end, suffix = '', prefix = '', duration = 2000
-}) => {
-  const [count, setCount] = useState(0);
-  const { ref, isVisible } = useIntersectionObserver(0.3);
-
-  useEffect(() => {
-    if (!isVisible) return;
-    let startTime: number;
-    const step = (timestamp: number) => {
-      if (!startTime) startTime = timestamp;
-      const progress = Math.min((timestamp - startTime) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3); // cubic ease-out
-      setCount(Math.floor(eased * end));
-      if (progress < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  }, [isVisible, end, duration]);
+const FadeIn = ({ children, delay = 0, direction = 'up' }: any) => {
+  const directions = {
+    up: { y: 40, x: 0 },
+    down: { y: -40, x: 0 },
+    left: { x: 40, y: 0 },
+    right: { x: -40, y: 0 },
+  };
 
   return (
-    <span ref={ref}>
-      {prefix}{count}{suffix}
-    </span>
+    <motion.div
+      initial={{ opacity: 0, ...directions[direction as keyof typeof directions] }}
+      whileInView={{ opacity: 1, x: 0, y: 0 }}
+      viewport={{ once: true, margin: "-100px" }}
+      transition={{ duration: 0.8, delay, ease: [0.21, 0.47, 0.32, 0.98] }}
+    >
+      {children}
+    </motion.div>
   );
 };
+
+const MagneticButton = ({ children, onClick, className }: any) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+
+  const handleMouse = (e: React.MouseEvent) => {
+    const { clientX, clientY } = e;
+    const { height, width, left, top } = ref.current?.getBoundingClientRect() || { height: 0, width: 0, left: 0, top: 0 };
+    const middleX = clientX - (left + width / 2);
+    const middleY = clientY - (top + height / 2);
+    setPosition({ x: middleX * 0.2, y: middleY * 0.2 });
+  };
+
+  const reset = () => setPosition({ x: 0, y: 0 });
+
+  return (
+    <motion.div
+      ref={ref}
+      onMouseMove={handleMouse}
+      onMouseLeave={reset}
+      animate={{ x: position.x, y: position.y }}
+      transition={{ type: "spring", stiffness: 150, damping: 15, mass: 0.1 }}
+      className={className}
+      onClick={onClick}
+    >
+      {children}
+    </motion.div>
+  );
+};
+
+const FeatureCard = ({ icon: Icon, title, description, delay = 0 }: any) => (
+  <FadeIn delay={delay}>
+    <div className="group relative p-8 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors duration-500 overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      <div className="relative z-10">
+        <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mb-6 text-white group-hover:scale-110 transition-transform duration-500">
+          <Icon size={28} />
+        </div>
+        <h3 className="text-2xl font-bold text-white mb-4 font-outfit">{title}</h3>
+        <p className="text-gray-400 leading-relaxed">{description}</p>
+      </div>
+    </div>
+  </FadeIn>
+);
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
   const [jobRole, setJobRole] = useState('Software Developer');
   const [resumeData, setResumeData] = useState<any>(null);
-  const [scrollY, setScrollY] = useState(0);
+  const [selectedLanguage, setSelectedLanguage] = useState('hi-IN');
+  const { scrollYProgress } = useScroll();
 
-  // Parallax scroll tracking
-  useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  const y1 = useTransform(scrollYProgress, [0, 1], [0, -200]);
+  const opacity = useTransform(scrollYProgress, [0, 0.2], [1, 0]);
 
-  const statsSection = useIntersectionObserver(0.2);
-  const howItWorksSection = useIntersectionObserver(0.1);
-  const techSection = useIntersectionObserver(0.1);
-  const ctaSection = useIntersectionObserver(0.2);
+  const INDIAN_LANGUAGES = [
+    { code: 'hi-IN', label: 'Hindi' },
+    { code: 'mr-IN', label: 'Marathi' },
+    { code: 'ta-IN', label: 'Tamil' },
+    { code: 'te-IN', label: 'Telugu' },
+    { code: 'kn-IN', label: 'Kannada' },
+    { code: 'bn-IN', label: 'Bengali' },
+    { code: 'gu-IN', label: 'Gujarati' },
+    { code: 'ml-IN', label: 'Malayalam' },
+    { code: 'pa-IN', label: 'Punjabi' },
+    { code: 'od-IN', label: 'Odia' },
+  ];
 
-  const startInterview = () => {
+  const startInterview = (mode: 'english' | 'regional') => {
     const sessionId = uuidv4();
     const params = new URLSearchParams({
       role: jobRole,
-      hasResume: resumeData ? 'true' : 'false'
+      hasResume: resumeData ? 'true' : 'false',
+      avatarSpeech: mode === 'english' ? 'true' : 'false',
+      lang: mode === 'english' ? 'en-IN' : selectedLanguage,
     });
     if (resumeData) {
       sessionStorage.setItem(`resume_${sessionId}`, JSON.stringify(resumeData));
@@ -111,692 +122,298 @@ const Home: React.FC = () => {
     navigate(`/interview/${sessionId}?${params.toString()}`);
   };
 
-  const handleResumeAnalyzed = (data: any) => {
-    setResumeData(data);
-  };
-
-  const steps = [
-    {
-      icon: <WorkOutline sx={{ fontSize: 36 }} />,
-      title: 'Set Your Profile',
-      desc: 'Enter your target role and optionally upload your resume. Our AI instantly parses your skills and experience.',
-      color: '#6366f1',
-      bg: 'rgba(99,102,241,0.1)',
-    },
-    {
-      icon: <Psychology sx={{ fontSize: 36 }} />,
-      title: 'AI-Powered Questions',
-      desc: 'Our language model crafts personalized behavioral, technical, and situational questions based on your target role and experience profile.',
-      color: '#10b981',
-      bg: 'rgba(16,185,129,0.1)',
-    },
-    {
-      icon: <FaceRetouchingNatural sx={{ fontSize: 36 }} />,
-      title: 'Deep Multimodal Analysis',
-      desc: 'Computer vision reads your facial expressions in real-time. Audio intelligence analyzes your voice tone, pace, and clarity as you speak.',
-      color: '#f59e0b',
-      bg: 'rgba(245,158,11,0.1)',
-    },
-    {
-      icon: <BarChart sx={{ fontSize: 36 }} />,
-      title: 'Comprehensive Evaluation Report',
-      desc: 'The AI engine synthesizes all signals — verbal, facial, vocal — into a comprehensive growth report with structured, actionable insights.',
-      color: '#ec4899',
-      bg: 'rgba(236,72,153,0.1)',
-    },
-  ];
-
-  const technologies = [
-    {
-      icon: <FaceRetouchingNatural sx={{ fontSize: 40 }} />,
-      name: 'Computer Vision',
-      label: 'Facial Intelligence',
-      desc: 'Real-time 468-point facial landmark detection to measure confidence, engagement, and eye contact at 30fps.',
-      color: '#6366f1',
-      gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-    },
-    {
-      icon: <GraphicEq sx={{ fontSize: 40 }} />,
-      name: 'Audio Intelligence',
-      label: 'Voice Analytics',
-      desc: 'Spectral analysis, pitch detection, and speech rate estimation for comprehensive vocal confidence scoring.',
-      color: '#10b981',
-      gradient: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
-    },
-    {
-      icon: <AutoAwesome sx={{ fontSize: 40 }} />,
-      name: 'Language AI',
-      label: 'Response Evaluation',
-      desc: 'A state-of-the-art large language model generates role-specific questions, evaluates response quality, and produces comprehensive career reports.',
-      color: '#f59e0b',
-      gradient: 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)',
-    },
-  ];
+  useEffect(() => {
+    // Add tailwind via CDN if not present for layout utilities
+    if (!document.getElementById('tailwind-cdn')) {
+      const script = document.createElement('script');
+      script.id = 'tailwind-cdn';
+      script.src = 'https://cdn.tailwindcss.com';
+      document.head.appendChild(script);
+    }
+  }, []);
 
   return (
-    <>
-      {/* Global keyframe animations */}
-      <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-20px); }
-        }
-        @keyframes pulse-glow {
-          0%, 100% { box-shadow: 0 0 20px rgba(16,185,129,0.4); }
-          50% { box-shadow: 0 0 60px rgba(16,185,129,0.8); }
-        }
-        @keyframes particle-drift {
-          0% { transform: translate(0, 0) scale(1); opacity: 0.6; }
-          50% { transform: translate(30px, -40px) scale(1.1); opacity: 0.3; }
-          100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
-        }
-        @keyframes chevron-bounce {
-          0%, 100% { transform: translateY(0); opacity: 1; }
-          50% { transform: translateY(8px); opacity: 0.5; }
-        }
-        @keyframes gradient-shift {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        @keyframes slide-up {
-          from { opacity: 0; transform: translateY(40px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fade-in-left {
-          from { opacity: 0; transform: translateX(-30px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes typewriter-cursor {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0; }
-        }
-        .stat-card:hover { transform: translateY(-6px); }
-        .tech-card:hover { transform: translateY(-8px) scale(1.02); }
-        .step-card:hover { transform: translateY(-4px); }
-      `}</style>
-
+    <div className="bg-[#050505] min-h-screen text-white font-sans selection:bg-purple-500/30">
       <NavigationHeader />
 
-      {/* ─── SECTION 1: HERO ─────────────────────────────────────────────────── */}
-      <Box
-        sx={{
-          minHeight: '100vh',
-          position: 'relative',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          background: 'linear-gradient(135deg, #0a0f1e 0%, #0d1b2a 30%, #051a11 60%, #0a0f1e 100%)',
-          backgroundSize: '300% 300%',
-          animation: 'gradient-shift 10s ease infinite',
-        }}
-      >
-        {/* Particle field */}
-        {[...Array(25)].map((_, i) => (
-          <Box
-            key={i}
-            sx={{
-              position: 'absolute',
-              width: `${Math.random() * 4 + 2}px`,
-              height: `${Math.random() * 4 + 2}px`,
-              borderRadius: '50%',
-              backgroundColor: i % 3 === 0 ? '#10b981' : i % 3 === 1 ? '#6366f1' : '#f59e0b',
-              opacity: 0.4 + Math.random() * 0.4,
-              top: `${Math.random() * 100}%`,
-              left: `${Math.random() * 100}%`,
-              animation: `particle-drift ${4 + Math.random() * 6}s ease-in-out infinite`,
-              animationDelay: `${Math.random() * 4}s`,
-            }}
-          />
-        ))}
+      {/* Hero Section */}
+      <section className="relative h-screen flex items-center justify-center overflow-hidden">
+        {/* 3D Background */}
+        <div className="absolute inset-0 z-0 opacity-60">
+          <Canvas camera={{ position: [0, 0, 8], fov: 45 }}>
+            <AnimatedBackground />
+          </Canvas>
+        </div>
 
-        {/* Glowing orbs */}
-        <Box sx={{
-          position: 'absolute', top: '10%', left: '5%', width: 400, height: 400,
-          borderRadius: '50%', background: 'radial-gradient(circle, rgba(16,185,129,0.15) 0%, transparent 70%)',
-          filter: 'blur(40px)', transform: `translateY(${scrollY * 0.1}px)`,
-        }} />
-        <Box sx={{
-          position: 'absolute', bottom: '15%', right: '8%', width: 500, height: 500,
-          borderRadius: '50%', background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)',
-          filter: 'blur(60px)', transform: `translateY(${-scrollY * 0.08}px)`,
-        }} />
-        <Box sx={{
-          position: 'absolute', top: '40%', right: '15%', width: 300, height: 300,
-          borderRadius: '50%', background: 'radial-gradient(circle, rgba(245,158,11,0.1) 0%, transparent 70%)',
-          filter: 'blur(50px)',
-        }} />
+        {/* Content */}
+        <div className="relative z-10 container mx-auto px-6 pt-20">
+          <div className="max-w-5xl mx-auto text-center">
+            <motion.div style={{ y: y1, opacity }}>
+              <FadeIn delay={0.1}>
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm font-medium mb-8 backdrop-blur-md">
+                  <Sparkles size={16} className="text-blue-400" />
+                  <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                    Next-Gen Interview Intelligence
+                  </span>
+                </div>
+              </FadeIn>
 
-        <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 2, py: { xs: 12, md: 4 } }}>
-          <Grid container spacing={6} alignItems="center">
-            <Grid item xs={12} md={6}>
-              <Box sx={{ animation: 'slide-up 0.8s ease-out' }}>
-                {/* Badge */}
-                <Chip
-                  icon={<AutoAwesome sx={{ color: '#f59e0b !important', fontSize: 20 }} />}
-                  label="AI-Powered · Real-time Analysis"
-                  sx={{
-                    mb: 3,
-                    backgroundColor: 'rgba(245,158,11,0.12)',
-                    border: '1px solid rgba(245,158,11,0.3)',
-                    color: '#f59e0b',
-                    fontWeight: 600,
-                    fontSize: '0.78rem',
-                    '& .MuiChip-label': { px: 1.5 }
-                  }}
-                />
+              <FadeIn delay={0.2}>
+                <h1 className="text-6xl md:text-8xl font-black tracking-tighter mb-8 leading-[1.1] font-outfit">
+                  <span className="block">Master Your</span>
+                  <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-blue-400 bg-300% animate-gradient">
+                    Performance
+                  </span>
+                </h1>
+              </FadeIn>
 
-                <Typography
-                  variant="h1"
-                  sx={{
-                    color: 'white',
-                    fontWeight: 900,
-                    fontSize: { xs: '3rem', md: '4.2rem', lg: '5rem' },
-                    lineHeight: 1.05,
-                    mb: 3,
-                    letterSpacing: '-0.02em',
-                  }}
-                >
-                  The AI That{' '}
-                  <Box
-                    component="span"
-                    sx={{
-                      background: 'linear-gradient(135deg, #10b981 0%, #6366f1 50%, #f59e0b 100%)',
-                      backgroundClip: 'text',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      backgroundSize: '200% 200%',
-                      animation: 'gradient-shift 4s ease infinite',
-                    }}
+              <FadeIn delay={0.3}>
+                <p className="text-xl md:text-2xl text-gray-400 mb-12 max-w-2xl mx-auto font-light">
+                  A multimodal AI engine that reads your expressions, analyzes your voice, and evaluates your responses in real-time.
+                </p>
+              </FadeIn>
+
+              <FadeIn delay={0.4}>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+                  <MagneticButton
+                    className="cursor-pointer"
+                    onClick={() => document.getElementById('setup')?.scrollIntoView({ behavior: 'smooth' })}
                   >
-                    Reads You
-                  </Box>
-                </Typography>
-
-                <Typography
-                  variant="h5"
-                  sx={{
-                    color: 'rgba(255,255,255,0.75)',
-                    mb: 4,
-                    lineHeight: 1.6,
-                    fontWeight: 400,
-                    fontSize: { xs: '1.1rem', md: '1.25rem' },
-                    maxWidth: 520,
-                  }}
-                >
-                  Real-time multimodal interview coaching — analyzing your{' '}
-                  <Box component="span" sx={{ color: '#10b981', fontWeight: 600 }}>expressions</Box>,{' '}
-                  <Box component="span" sx={{ color: '#6366f1', fontWeight: 600 }}>voice</Box>, and{' '}
-                  <Box component="span" sx={{ color: '#f59e0b', fontWeight: 600 }}>responses</Box>{' '}
-                  simultaneously. Built for professionals who take their growth seriously.
-                </Typography>
-
-                <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', gap: 1.5, mb: 5 }}>
-                  {[
-                    { label: 'Facial Expression Analysis', color: '#6366f1' },
-                    { label: 'Voice Tone Intelligence', color: '#10b981' },
-                    { label: 'Neural Language AI', color: '#f59e0b' },
-                    { label: 'Real-time Streaming', color: '#ec4899' },
-                  ].map(({ label, color }) => (
-                    <Chip
-                      key={label}
-                      label={label}
-                      size="small"
-                      sx={{
-                        backgroundColor: `${color}18`,
-                        border: `1px solid ${color}40`,
-                        color: color,
-                        fontWeight: 600,
-                        fontSize: '0.75rem',
-                      }}
-                    />
-                  ))}
-                </Stack>
-
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                  <Button
-                    onClick={() => document.getElementById('start-section')?.scrollIntoView({ behavior: 'smooth' })}
-                    variant="contained"
-                    size="large"
-                    endIcon={<ArrowForward />}
-                    sx={{
-                      py: 2,
-                      px: 4,
-                      fontSize: '1.05rem',
-                      fontWeight: 700,
-                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                      border: 'none',
-                      borderRadius: '50px',
-                      animation: 'pulse-glow 3s ease-in-out infinite',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                        transform: 'translateY(-2px) scale(1.02)',
-                      },
-                    }}
+                    <div className="px-8 py-4 rounded-full bg-white text-black font-semibold text-lg hover:scale-105 transition-transform flex items-center gap-2 group">
+                      Get Started
+                      <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20} />
+                    </div>
+                  </MagneticButton>
+                  <MagneticButton
+                    className="cursor-pointer"
+                    onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
                   >
-                    Start Your Interview
-                  </Button>
-                  <Button
-                    onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-                    variant="outlined"
-                    size="large"
-                    sx={{
-                      py: 2,
-                      px: 4,
-                      fontSize: '1rem',
-                      fontWeight: 600,
-                      border: '1px solid rgba(255,255,255,0.25)',
-                      color: 'rgba(255,255,255,0.85)',
-                      borderRadius: '50px',
-                      '&:hover': { border: '1px solid rgba(255,255,255,0.5)', backgroundColor: 'rgba(255,255,255,0.05)' },
-                    }}
-                  >
-                    See How It Works
-                  </Button>
-                </Stack>
-              </Box>
-            </Grid>
-
-            {/* Right side: floating analysis preview cards */}
-            <Grid item xs={12} md={6}>
-              <Box sx={{ position: 'relative', height: 420, display: { xs: 'none', md: 'block' } }}>
-                {/* Facial Analysis Card */}
-                <Card sx={{
-                  position: 'absolute', top: 0, left: '10%',
-                  background: 'rgba(15,23,42,0.85)',
-                  border: '1px solid rgba(99,102,241,0.4)',
-                  backdropFilter: 'blur(20px)',
-                  p: 2.5, borderRadius: 3,
-                  animation: 'float 4s ease-in-out infinite',
-                  boxShadow: '0 20px 60px rgba(99,102,241,0.2)',
-                  width: 220,
-                }}>
-                  <Stack direction="row" spacing={1.5} alignItems="center" mb={1.5}>
-                    <Avatar sx={{ bgcolor: 'rgba(99,102,241,0.2)', width: 36, height: 36 }}>
-                      <FaceRetouchingNatural sx={{ color: '#6366f1', fontSize: 20 }} />
-                    </Avatar>
-                    <Typography variant="body2" fontWeight={700} color="white">Facial Analysis</Typography>
-                  </Stack>
-                  {[
-                    { label: 'Confidence', value: 87, color: '#10b981' },
-                    { label: 'Eye Contact', value: 92, color: '#6366f1' },
-                    { label: 'Engagement', value: 78, color: '#f59e0b' },
-                  ].map(({ label, value, color }) => (
-                    <Box key={label} mb={0.8}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.3 }}>
-                        <Typography variant="caption" color="rgba(255,255,255,0.6)">{label}</Typography>
-                        <Typography variant="caption" fontWeight={700} color={color}>{value}%</Typography>
-                      </Box>
-                      <Box sx={{ height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                        <Box sx={{ height: '100%', width: `${value}%`, borderRadius: 2, backgroundColor: color }} />
-                      </Box>
-                    </Box>
-                  ))}
-                </Card>
-
-                {/* Voice Analysis Card */}
-                <Card sx={{
-                  position: 'absolute', bottom: 40, left: '5%',
-                  background: 'rgba(15,23,42,0.85)',
-                  border: '1px solid rgba(16,185,129,0.4)',
-                  backdropFilter: 'blur(20px)',
-                  p: 2.5, borderRadius: 3,
-                  animation: 'float 5s ease-in-out infinite',
-                  animationDelay: '1s',
-                  boxShadow: '0 20px 60px rgba(16,185,129,0.2)',
-                  width: 200,
-                }}>
-                  <Stack direction="row" spacing={1.5} alignItems="center" mb={1.5}>
-                    <Avatar sx={{ bgcolor: 'rgba(16,185,129,0.2)', width: 36, height: 36 }}>
-                      <GraphicEq sx={{ color: '#10b981', fontSize: 20 }} />
-                    </Avatar>
-                    <Typography variant="body2" fontWeight={700} color="white">Voice Score</Typography>
-                  </Stack>
-                  <Typography variant="h3" fontWeight={900} sx={{ color: '#10b981', lineHeight: 1 }}>84</Typography>
-                  <Typography variant="caption" color="rgba(255,255,255,0.5)">out of 100</Typography>
-                  <Box sx={{ mt: 1.5 }}>
-                    {[{ label: 'Clarity', val: 'Excellent' }, { label: 'Pace', val: 'Optimal' }].map(({ label, val }) => (
-                      <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography variant="caption" color="rgba(255,255,255,0.5)">{label}</Typography>
-                        <Typography variant="caption" color="#10b981" fontWeight={700}>{val}</Typography>
-                      </Box>
-                    ))}
-                  </Box>
-                </Card>
-
-                {/* AI Gemini Card */}
-                <Card sx={{
-                  position: 'absolute', top: '20%', right: '2%',
-                  background: 'rgba(15,23,42,0.9)',
-                  border: '1px solid rgba(245,158,11,0.4)',
-                  backdropFilter: 'blur(20px)',
-                  p: 2.5, borderRadius: 3,
-                  animation: 'float 6s ease-in-out infinite',
-                  animationDelay: '2s',
-                  boxShadow: '0 20px 60px rgba(245,158,11,0.2)',
-                  width: 210,
-                }}>
-                  <Stack direction="row" spacing={1.5} alignItems="center" mb={1}>
-                    <Avatar sx={{ bgcolor: 'rgba(245,158,11,0.2)', width: 36, height: 36 }}>
-                      <AutoAwesome sx={{ color: '#f59e0b', fontSize: 20 }} />
-                    </Avatar>
-                    <Typography variant="body2" fontWeight={700} color="white">Gemini AI</Typography>
-                  </Stack>
-                  <Typography variant="caption" color="rgba(255,255,255,0.65)" sx={{ lineHeight: 1.5 }}>
-                    "Tell me about a time you led a cross-functional team under a tight deadline..."
-                  </Typography>
-                  <Chip
-                    label="Behavioral · Medium"
-                    size="small"
-                    sx={{ mt: 1.5, backgroundColor: 'rgba(245,158,11,0.15)', color: '#f59e0b', fontWeight: 600, fontSize: '0.7rem' }}
-                  />
-                </Card>
-              </Box>
-            </Grid>
-          </Grid>
-        </Container>
-
-        {/* Scroll indicator */}
-        <Box sx={{ position: 'absolute', bottom: 32, left: '50%', transform: 'translateX(-50%)', textAlign: 'center' }}>
-          <Typography variant="caption" color="rgba(255,255,255,0.4)" display="block" mb={1}>Scroll to explore</Typography>
-          <KeyboardArrowDown sx={{ color: 'rgba(255,255,255,0.4)', animation: 'chevron-bounce 1.5s ease-in-out infinite' }} />
-        </Box>
-      </Box>
-
-      {/* ─── SECTION 2: STATS COUNTER ────────────────────────────────────────── */}
-      <Box sx={{ py: 8, background: 'linear-gradient(135deg, #0d1b2a 0%, #0a1628 100%)' }}>
-        <Container maxWidth="lg">
-          <div ref={statsSection.ref}>
-            <Grid container spacing={4} justifyContent="center">
-              {[
-                { label: 'Facial Landmarks Tracked', end: 468, suffix: '+', icon: <FaceRetouchingNatural />, color: '#6366f1' },
-                { label: 'AI Model Accuracy', end: 94, suffix: '%', icon: <AutoAwesome />, color: '#f59e0b' },
-                { label: 'AI Analysis Dimensions', end: 12, suffix: '', icon: <Assessment />, color: '#10b981' },
-                { label: 'Millisecond Response Time', end: 50, suffix: 'ms', icon: <Speed />, color: '#ec4899' },
-              ].map(({ label, end, suffix, icon, color }, i) => (
-                <Grid item xs={6} md={3} key={label}>
-                  <Card
-                    className="stat-card"
-                    sx={{
-                      textAlign: 'center', p: 3,
-                      background: 'rgba(255,255,255,0.04)',
-                      border: `1px solid ${color}30`,
-                      backdropFilter: 'blur(10px)',
-                      borderRadius: 3,
-                      transition: 'transform 0.3s ease',
-                      animation: statsSection.isVisible ? `slide-up 0.6s ease-out ${i * 0.15}s both` : 'none',
-                    }}
-                  >
-                    <Avatar sx={{ bgcolor: `${color}18`, mx: 'auto', mb: 2, width: 52, height: 52 }}>
-                      <Box sx={{ color }}>{icon}</Box>
-                    </Avatar>
-                    <Typography variant="h3" fontWeight={900} sx={{ color, lineHeight: 1 }}>
-                      {statsSection.isVisible ? <AnimatedCounter end={end} suffix={suffix} /> : `0${suffix}`}
-                    </Typography>
-                    <Typography variant="caption" color="rgba(255,255,255,0.55)" sx={{ mt: 1, display: 'block', lineHeight: 1.4 }}>
-                      {label}
-                    </Typography>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
+                    <div className="px-8 py-4 rounded-full border border-white/20 text-white font-semibold text-lg hover:bg-white/5 transition-colors">
+                      Explore Tech
+                    </div>
+                  </MagneticButton>
+                </div>
+              </FadeIn>
+            </motion.div>
           </div>
-        </Container>
-      </Box>
+        </div>
 
-      {/* ─── SECTION 3: HOW IT WORKS ─────────────────────────────────────────── */}
-      <Box id="how-it-works" sx={{ py: 10, background: '#060c14' }}>
-        <Container maxWidth="lg">
-          <Box sx={{ textAlign: 'center', mb: 7 }}>
-            <Chip label="HOW IT WORKS" sx={{ mb: 2, backgroundColor: 'rgba(16,185,129,0.1)', color: '#10b981', fontWeight: 700, letterSpacing: '0.1em' }} />
-            <Typography variant="h2" fontWeight={800} color="white" sx={{ mb: 2 }}>
-              From Upload to{' '}
-              <Box component="span" sx={{ color: '#10b981' }}>Insight</Box>
-            </Typography>
-            <Typography variant="h6" color="rgba(255,255,255,0.55)" sx={{ maxWidth: 560, mx: 'auto' }}>
-              Four intelligent steps that transform a practice session into actionable career intelligence.
-            </Typography>
-          </Box>
+        {/* Scroll Indicator */}
+        <motion.div
+          className="absolute bottom-10 left-1/2 -translate-x-1/2 text-white/50"
+          animate={{ y: [0, 10, 0] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <ChevronDown size={32} />
+        </motion.div>
+      </section>
 
-          <div ref={howItWorksSection.ref}>
-            <Grid container spacing={3}>
-              {steps.map((step, i) => (
-                <Grid item xs={12} sm={6} md={3} key={step.title}>
-                  <Card
-                    className="step-card"
-                    sx={{
-                      p: 3.5, height: '100%',
-                      background: 'rgba(255,255,255,0.04)',
-                      border: `1px solid ${step.color}25`,
-                      borderRadius: 3,
-                      transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                      animation: howItWorksSection.isVisible ? `slide-up 0.7s ease-out ${i * 0.15}s both` : 'none',
-                      '&:hover': { boxShadow: `0 16px 40px ${step.color}25` },
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        width: 60, height: 60, borderRadius: 2,
-                        backgroundColor: step.bg,
-                        border: `1px solid ${step.color}30`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        mb: 2.5, color: step.color,
-                      }}
-                    >
-                      {step.icon}
-                    </Box>
-                    <Typography variant="caption" sx={{ color: step.color, fontWeight: 700, letterSpacing: '0.08em', mb: 1, display: 'block' }}>
-                      STEP {String(i + 1).padStart(2, '0')}
-                    </Typography>
-                    <Typography variant="h6" fontWeight={700} color="white" gutterBottom>
-                      {step.title}
-                    </Typography>
-                    <Typography variant="body2" color="rgba(255,255,255,0.55)" sx={{ lineHeight: 1.7 }}>
-                      {step.desc}
-                    </Typography>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
+      {/* Features Section */}
+      <section id="features" className="py-32 relative z-10 bg-[#050505]">
+        <div className="container mx-auto px-6">
+          <FadeIn>
+            <h2 className="text-4xl md:text-6xl font-black mb-20 text-center font-outfit">
+              Powered by <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">Intelligence</span>
+            </h2>
+          </FadeIn>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            <FeatureCard
+              icon={Eye}
+              title="Computer Vision"
+              description="Real-time 468-point facial landmark detection measuring confidence, engagement, and eye contact instantaneously."
+              delay={0.1}
+            />
+            <FeatureCard
+              icon={Mic2}
+              title="Voice Analytics"
+              description="Spectral analysis and pitch detection scoring your vocal clarity, pace, and persuasive tonality."
+              delay={0.2}
+            />
+            <FeatureCard
+              icon={BrainCircuit}
+              title="Neural Evaluation"
+              description="State-of-the-art LLMs generate highly contextual questions and evaluate the structural quality of your answers."
+              delay={0.3}
+            />
           </div>
-        </Container>
-      </Box>
+        </div>
+      </section>
 
-      {/* ─── SECTION 4: TECHNOLOGY SHOWCASE ─────────────────────────────────── */}
-      <Box sx={{ py: 10, background: 'linear-gradient(135deg, #0a0f1e 0%, #0d1a2e 100%)' }}>
-        <Container maxWidth="lg">
-          <Box sx={{ textAlign: 'center', mb: 7 }}>
-            <Chip label="CORE TECHNOLOGIES" sx={{ mb: 2, backgroundColor: 'rgba(99,102,241,0.1)', color: '#6366f1', fontWeight: 700, letterSpacing: '0.1em' }} />
-            <Typography variant="h2" fontWeight={800} color="white" sx={{ mb: 2 }}>
-              Intelligent.
-              <Box component="span" sx={{
-                background: 'linear-gradient(135deg, #6366f1, #10b981)',
-                backgroundClip: 'text', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'
-              }}>
-                {' '}Precise.
-              </Box>
-            </Typography>
-            <Typography variant="h6" color="rgba(255,255,255,0.55)" sx={{ maxWidth: 520, mx: 'auto' }}>
-              Three production-grade AI systems working in concert, in real-time, delivering measurable insight.
-            </Typography>
-          </Box>
+      {/* Configuration & Start Section */}
+      <section id="setup" className="py-32 relative z-10 border-t border-white/10 overflow-hidden">
+        {/* Decorative background gradients */}
+        <div className="absolute top-1/2 left-0 w-96 h-96 bg-blue-500/10 rounded-full blur-[120px] -translate-y-1/2" />
+        <div className="absolute top-1/2 right-0 w-96 h-96 bg-purple-500/10 rounded-full blur-[120px] -translate-y-1/2" />
 
-          <div ref={techSection.ref}>
-            <Grid container spacing={4}>
-              {technologies.map((tech, i) => (
-                <Grid item xs={12} md={4} key={tech.name}>
-                  <Card
-                    className="tech-card"
-                    sx={{
-                      p: 4, height: '100%',
-                      background: 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${tech.color}30`,
-                      borderRadius: 4,
-                      transition: 'transform 0.4s ease, box-shadow 0.4s ease',
-                      animation: techSection.isVisible ? `slide-up 0.8s ease-out ${i * 0.2}s both` : 'none',
-                      '&:hover': { boxShadow: `0 24px 60px ${tech.color}20` },
-                    }}
-                  >
-                    <Box sx={{
-                      width: 70, height: 70, borderRadius: 2.5,
-                      background: tech.gradient,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      mb: 3, color: 'white',
-                      boxShadow: `0 8px 24px ${tech.color}40`,
-                    }}>
-                      {tech.icon}
-                    </Box>
-                    <Typography variant="overline" sx={{ color: tech.color, fontWeight: 700, letterSpacing: '0.12em' }}>
-                      {tech.label}
-                    </Typography>
-                    <Typography variant="h5" fontWeight={700} color="white" gutterBottom sx={{ mt: 0.5 }}>
-                      {tech.name}
-                    </Typography>
-                    <Typography variant="body2" color="rgba(255,255,255,0.55)" sx={{ lineHeight: 1.8 }}>
-                      {tech.desc}
-                    </Typography>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </div>
-        </Container>
-      </Box>
+        <div className="container mx-auto px-6 relative">
+          <div className="max-w-6xl mx-auto bg-white/5 border border-white/10 rounded-[2.5rem] p-8 md:p-16 backdrop-blur-xl">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
 
-      {/* ─── SECTION 5: START THE INTERVIEW CTA ──────────────────────────────── */}
-      <Box id="start-section" sx={{ py: { xs: 8, md: 12 }, background: '#060c14', position: 'relative', overflow: 'hidden' }}>
-        {/* Background glow */}
-        <Box sx={{
-          position: 'absolute', top: '50%', left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 800, height: 400,
-          background: 'radial-gradient(ellipse, rgba(16,185,129,0.08) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }} />
+              <FadeIn direction="right">
+                <div>
+                  <h2 className="text-4xl font-bold mb-6 font-outfit">Configure Your Session</h2>
+                  <p className="text-gray-400 mb-10 text-lg leading-relaxed">
+                    Upload your resume to allow our AI to tailor the interview precisely to your experience level and target role.
+                  </p>
 
-        <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1 }}>
-          <div ref={ctaSection.ref}>
-            <Box sx={{
-              textAlign: 'center', mb: 6,
-              animation: ctaSection.isVisible ? 'slide-up 0.8s ease-out' : 'none',
-            }}>
-              <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-                <EmojiEvents sx={{ fontSize: 56, color: '#f59e0b' }} />
-              </Box>
-              <Typography variant="h2" fontWeight={800} color="white" sx={{ mb: 2 }}>
-                Ready to{' '}
-                <Box component="span" sx={{ color: '#10b981' }}>Elevate</Box>
-                {' '}Your Performance?
-              </Typography>
-              <Typography variant="h6" color="rgba(255,255,255,0.6)" sx={{ maxWidth: 520, mx: 'auto', lineHeight: 1.6 }}>
-                Experience the most comprehensive interview preparation platform. Structured. Intelligent. Actionable.
-              </Typography>
-            </Box>
+                  <div className="space-y-6">
+                    <div className="bg-black/40 rounded-2xl p-6 border border-white/10">
+                      <ResumeUpload onResumeAnalyzed={setResumeData} />
+                    </div>
 
-            {/* CTA Card */}
-            <Card sx={{
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(16,185,129,0.3)',
-              backdropFilter: 'blur(20px)',
-              borderRadius: 4,
-              p: { xs: 3, md: 5 },
-              animation: ctaSection.isVisible ? 'slide-up 1s ease-out 0.2s both' : 'none',
-            }}>
-              <Grid container spacing={3} alignItems="center">
-                <Grid item xs={12} md={7}>
-                  <Typography variant="h6" fontWeight={700} color="white" gutterBottom>
-                    Configure Your Session
-                  </Typography>
-                  <ResumeUpload onResumeAnalyzed={handleResumeAnalyzed} />
-                  <TextField
-                    fullWidth
-                    label="Target Job Role"
-                    value={jobRole}
-                    onChange={(e) => setJobRole(e.target.value)}
-                    variant="outlined"
-                    sx={{
-                      mt: 2,
-                      '& .MuiOutlinedInput-root': {
-                        color: 'white',
-                        '& fieldset': { borderColor: 'rgba(255,255,255,0.2)' },
-                        '&:hover fieldset': { borderColor: 'rgba(16,185,129,0.5)' },
-                        '&.Mui-focused fieldset': { borderColor: '#10b981' },
-                      },
-                      '& .MuiInputLabel-root': { color: 'rgba(255,255,255,0.5)' },
-                      '& .MuiInputLabel-root.Mui-focused': { color: '#10b981' },
-                    }}
-                  />
-
-                  {resumeData && (
-                    <Box sx={{ mt: 1.5, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      <Chip
-                        icon={<TrendingUp sx={{ color: '#10b981 !important', fontSize: 14 }} />}
-                        label={`${resumeData.skills?.length || 0} Skills Detected`}
-                        size="small"
-                        sx={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#10b981', fontWeight: 600 }}
+                    <div>
+                      <TextField
+                        fullWidth
+                        label="Target Job Role"
+                        value={jobRole}
+                        onChange={(e) => setJobRole(e.target.value)}
+                        variant="outlined"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            color: 'white',
+                            backgroundColor: 'rgba(0,0,0,0.4)',
+                            borderRadius: '16px',
+                            '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' },
+                            '&:hover fieldset': { borderColor: 'rgba(59,130,246,0.5)' },
+                            '&.Mui-focused fieldset': { borderColor: '#3b82f6' },
+                          },
+                          '& .MuiInputLabel-root': { color: 'rgba(255,255,255,0.5)' },
+                          '& .MuiInputLabel-root.Mui-focused': { color: '#3b82f6' },
+                        }}
                       />
-                      <Chip
-                        icon={<WorkOutline sx={{ color: '#6366f1 !important', fontSize: 14 }} />}
-                        label={`${resumeData.experience?.length || 0} Roles Parsed`}
-                        size="small"
-                        sx={{ backgroundColor: 'rgba(99,102,241,0.15)', color: '#6366f1', fontWeight: 600 }}
-                      />
-                    </Box>
-                  )}
-                </Grid>
+                    </div>
 
-                <Grid item xs={12} md={5} sx={{ textAlign: { xs: 'left', md: 'center' } }}>
-                  <Stack spacing={2}>
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      size="large"
-                      onClick={startInterview}
-                      endIcon={<ArrowForward />}
-                      sx={{
-                        py: 2.5,
-                        fontSize: '1.1rem',
-                        fontWeight: 800,
-                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                        borderRadius: '12px',
-                        animation: 'pulse-glow 3s ease-in-out infinite',
-                        '&:hover': {
-                          background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                          transform: 'translateY(-2px)',
-                        },
-                      }}
-                    >
-                      Begin Interview Session
-                    </Button>
+                    {resumeData && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex flex-wrap gap-3"
+                      >
+                        <Chip
+                          icon={<TrendingUp sx={{ color: '#60a5fa !important', fontSize: 16 }} />}
+                          label={`${resumeData.skills?.length || 0} Skills Detected`}
+                          sx={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa', fontWeight: 600, py: 2, borderRadius: '12px' }}
+                        />
+                        <Chip
+                          icon={<WorkOutline sx={{ color: '#c084fc !important', fontSize: 16 }} />}
+                          label={`${resumeData.experience?.length || 0} Roles Parsed`}
+                          sx={{ backgroundColor: 'rgba(168,85,247,0.15)', color: '#c084fc', fontWeight: 600, py: 2, borderRadius: '12px' }}
+                        />
+                      </motion.div>
+                    )}
+                  </div>
+                </div>
+              </FadeIn>
 
-                    <Stack spacing={1}>
-                      {[
-                        { icon: <VideoCall sx={{ fontSize: 16 }} />, text: 'Real-time facial expression analysis' },
-                        { icon: <Mic sx={{ fontSize: 16 }} />, text: 'Voice tone and clarity scoring' },
-                        { icon: <Psychology sx={{ fontSize: 16 }} />, text: 'AI-generated comprehensive evaluation' },
-                      ].map(({ icon, text }) => (
-                        <Stack key={text} direction="row" spacing={1} alignItems="center">
-                          <Box sx={{ color: '#10b981', display: 'flex' }}>{icon}</Box>
-                          <Typography variant="caption" color="rgba(255,255,255,0.65)">{text}</Typography>
-                        </Stack>
-                      ))}
-                    </Stack>
-                  </Stack>
-                </Grid>
-              </Grid>
-            </Card>
+              <FadeIn direction="left" delay={0.2}>
+                <div className="flex flex-col gap-6 h-full">
+                  {/* English Interview Card */}
+                  <div className="bg-black/40 border border-white/10 rounded-[2rem] p-8 relative overflow-hidden group flex-1">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-500/5 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-500/20">
+                          <BrainCircuit size={28} className="text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold font-outfit">English Interview</h3>
+                          <p className="text-gray-500 text-sm">Avatar speaks questions aloud</p>
+                        </div>
+                      </div>
+                      <p className="text-gray-400 text-sm mb-6">
+                        The 3D avatar will speak each question with lip-sync & voice. Camera + mic required.
+                      </p>
+                      <button
+                        onClick={() => startInterview('english')}
+                        className="w-full relative group/btn"
+                      >
+                        <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-2xl blur opacity-30 group-hover/btn:opacity-100 transition duration-500 group-hover/btn:duration-200" />
+                        <div className="relative px-6 py-4 bg-white text-black font-bold text-base rounded-2xl flex items-center justify-between overflow-hidden">
+                          <span>Start in English</span>
+                          <ChevronRight className="group-hover/btn:translate-x-1 transition-transform" size={20} />
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Indian Regional Languages Card */}
+                  <div className="bg-black/40 border border-white/10 rounded-[2rem] p-8 relative overflow-hidden group flex-1">
+                    <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-pink-500/5 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-2xl shadow-orange-500/20">
+                          <Globe size={28} className="text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold font-outfit">भारतीय भाषाएँ</h3>
+                          <p className="text-gray-500 text-sm">Indian regional language interview</p>
+                        </div>
+                      </div>
+                      <p className="text-gray-400 text-sm mb-4">
+                        Questions spoken via Sarvam AI in your language. Avatar stays silent to avoid voice overlap.
+                      </p>
+
+                      {/* Language selector */}
+                      <FormControl fullWidth sx={{ mb: 3 }}>
+                        <InputLabel sx={{ color: 'rgba(255,255,255,0.5)', '&.Mui-focused': { color: '#f97316' } }}>Language</InputLabel>
+                        <Select
+                          value={selectedLanguage}
+                          label="Language"
+                          onChange={(e) => setSelectedLanguage(e.target.value)}
+                          sx={{
+                            color: 'white',
+                            backgroundColor: 'rgba(0,0,0,0.4)',
+                            borderRadius: '16px',
+                            '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' },
+                            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(249,115,22,0.5)' },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#f97316' },
+                            '& .MuiSvgIcon-root': { color: 'rgba(255,255,255,0.5)' },
+                          }}
+                          MenuProps={{
+                            PaperProps: {
+                              sx: {
+                                bgcolor: 'rgba(20,20,20,0.95)',
+                                backdropFilter: 'blur(20px)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                '& .MuiMenuItem-root': { color: 'white', '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' }, '&.Mui-selected': { bgcolor: 'rgba(249,115,22,0.15)' } },
+                              },
+                            },
+                          }}
+                        >
+                          {INDIAN_LANGUAGES.map((lang) => (
+                            <MenuItem key={lang.code} value={lang.code}>{lang.label}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+
+                      <button
+                        onClick={() => startInterview('regional')}
+                        className="w-full relative group/btn"
+                      >
+                        <div className="absolute -inset-1 bg-gradient-to-r from-orange-500 to-pink-500 rounded-2xl blur opacity-30 group-hover/btn:opacity-100 transition duration-500 group-hover/btn:duration-200" />
+                        <div className="relative px-6 py-4 bg-white text-black font-bold text-base rounded-2xl flex items-center justify-between overflow-hidden">
+                          <span>Start in {INDIAN_LANGUAGES.find(l => l.code === selectedLanguage)?.label || 'Regional'}</span>
+                          <ChevronRight className="group-hover/btn:translate-x-1 transition-transform" size={20} />
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </FadeIn>
+
+            </div>
           </div>
-        </Container>
-      </Box>
+        </div>
+      </section>
 
-      {/* Footer */}
-      <Box sx={{ py: 3, background: '#040810', borderTop: '1px solid rgba(255,255,255,0.06)', textAlign: 'center' }}>
-        <Typography variant="body2" color="rgba(255,255,255,0.25)">
-          Multimodal Assessment Network · Advanced AI Interview Intelligence · Real-time Analysis
-        </Typography>
-      </Box>
-    </>
+      {/* Minimal Footer */}
+      <footer className="py-8 border-t border-white/5 text-center px-6">
+        <p className="text-gray-500 text-sm">
+          Improvyu &copy; {new Date().getFullYear()}. Elevated Intelligence.
+        </p>
+      </footer>
+    </div>
   );
 };
 

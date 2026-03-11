@@ -86,6 +86,14 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
 register_routes(app)
 
+# Sarvam AI Tools routes
+from sarvam_routes import sarvam_router
+app.include_router(sarvam_router)
+
+# Career Tools routes
+from career_tools_routes import career_router
+app.include_router(career_router)
+
 # Add a simple WebSocket test endpoint
 @app.websocket("/ws/test")
 async def websocket_test_endpoint(websocket: WebSocket):

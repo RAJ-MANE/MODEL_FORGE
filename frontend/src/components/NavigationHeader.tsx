@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -10,58 +10,38 @@ import {
   MenuItem,
   Chip,
   Divider,
-  Tooltip,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import {
   Home,
-  Dashboard,
   Settings,
   AccountCircle,
   Psychology,
-  Assessment,
   TrendingUp,
-  DarkMode,
-  LightMode,
   AutoAwesome,
+  Build,
+
+  KeyboardArrowDown,
+  Assignment,
+  AutoFixHigh,
+  QuestionAnswer,
+  AttachMoney,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { NavigationHeaderProps } from '../types';
 
-const DARK_MODE_KEY = 'cman_dark_mode';
-
-interface ExtendedNavigationHeaderProps extends NavigationHeaderProps {
-  onDarkModeChange?: (isDark: boolean) => void;
-  darkMode?: boolean;
-}
-
-const NavigationHeader: React.FC<ExtendedNavigationHeaderProps> = ({
+const NavigationHeader: React.FC<NavigationHeaderProps> = ({
   currentSession,
   sessionScore,
   showSessionInfo = false,
-  onDarkModeChange,
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [isDark, setIsDark] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(DARK_MODE_KEY) !== 'false';
-    } catch {
-      return true;
-    }
-  });
+  const [toolsAnchorEl, setToolsAnchorEl] = useState<null | HTMLElement>(null);
 
   const isHomePage = location.pathname === '/';
-
-  // Propagate dark mode to App and persist it
-  useEffect(() => {
-    try {
-      localStorage.setItem(DARK_MODE_KEY, String(isDark));
-    } catch { /* ignore */ }
-    onDarkModeChange?.(isDark);
-  }, [isDark, onDarkModeChange]);
-
-  const toggleDark = useCallback(() => setIsDark(prev => !prev), []);
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -72,6 +52,14 @@ const NavigationHeader: React.FC<ExtendedNavigationHeaderProps> = ({
   };
 
   const isActive = (path: string) => location.pathname === path;
+  const isToolsActive = location.pathname.startsWith('/tools');
+
+  const handleToolsMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setToolsAnchorEl(event.currentTarget);
+  };
+  const handleToolsMenuClose = () => {
+    setToolsAnchorEl(null);
+  };
 
   // On the home page the header overlays the dark hero
   const isOverlay = isHomePage;
@@ -82,11 +70,11 @@ const NavigationHeader: React.FC<ExtendedNavigationHeaderProps> = ({
       elevation={0}
       sx={{
         background: isOverlay
-          ? 'linear-gradient(180deg, rgba(6,12,20,0.9) 0%, transparent 100%)'
-          : 'linear-gradient(135deg, #047857 0%, #10b981 100%)',
-        backdropFilter: isOverlay ? 'none' : 'blur(20px)',
-        borderBottom: isOverlay ? 'none' : '1px solid rgba(255,255,255,0.15)',
-        boxShadow: isOverlay ? 'none' : '0 4px 20px rgba(4, 120, 87, 0.15)',
+          ? 'linear-gradient(180deg, rgba(5,5,5,0.9) 0%, transparent 100%)'
+          : 'rgba(10,10,10,0.85)',
+        backdropFilter: 'blur(20px)',
+        borderBottom: isOverlay ? 'none' : '1px solid rgba(255,255,255,0.06)',
+        boxShadow: isOverlay ? 'none' : '0 4px 30px rgba(0,0,0,0.3)',
         zIndex: 10,
       }}
     >
@@ -105,7 +93,7 @@ const NavigationHeader: React.FC<ExtendedNavigationHeaderProps> = ({
           <Box sx={{ position: 'relative', mr: 1.5 }}>
             <Psychology sx={{ fontSize: 30, color: 'white' }} />
             <AutoAwesome sx={{
-              fontSize: 14, color: '#f59e0b',
+              fontSize: 14, color: '#60a5fa',
               position: 'absolute', top: -4, right: -4,
             }} />
           </Box>
@@ -121,19 +109,7 @@ const NavigationHeader: React.FC<ExtendedNavigationHeaderProps> = ({
                 display: { xs: 'none', sm: 'block' },
               }}
             >
-              InterviewAI
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{
-                color: 'rgba(255,255,255,0.65)',
-                fontWeight: 500,
-                fontSize: '0.65rem',
-                letterSpacing: '0.08em',
-                display: { xs: 'none', sm: 'block' },
-              }}
-            >
-              MULTIMODAL ASSESSMENT
+              Improvyu
             </Typography>
           </Box>
           <Typography
@@ -146,7 +122,7 @@ const NavigationHeader: React.FC<ExtendedNavigationHeaderProps> = ({
               letterSpacing: '-0.02em',
             }}
           >
-            AI Prep
+            Improvyu
           </Typography>
         </Box>
 
@@ -196,50 +172,67 @@ const NavigationHeader: React.FC<ExtendedNavigationHeaderProps> = ({
             Home
           </Button>
 
+          {/* Tools Dropdown */}
           <Button
-            startIcon={<Dashboard />}
-            onClick={() => navigate('/dashboard')}
+            startIcon={<Build />}
+            endIcon={<KeyboardArrowDown />}
+            onClick={handleToolsMenuOpen}
             sx={{
               color: 'white',
-              fontWeight: isActive('/dashboard') ? 700 : 500,
-              backgroundColor: isActive('/dashboard') ? 'rgba(255,255,255,0.18)' : 'transparent',
+              fontWeight: isToolsActive ? 700 : 500,
+              backgroundColor: isToolsActive ? 'rgba(255,255,255,0.18)' : 'transparent',
               borderRadius: '8px',
               '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' },
             }}
           >
-            Dashboard
+            Tools
           </Button>
-
-          <Button
-            startIcon={<Assessment />}
-            onClick={() => navigate('/analytics')}
-            sx={{
-              color: 'white',
-              fontWeight: isActive('/analytics') ? 700 : 500,
-              backgroundColor: isActive('/analytics') ? 'rgba(255,255,255,0.18)' : 'transparent',
-              borderRadius: '8px',
-              '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' },
+          <Menu
+            anchorEl={toolsAnchorEl}
+            open={Boolean(toolsAnchorEl)}
+            onClose={handleToolsMenuClose}
+            PaperProps={{
+              sx: {
+                mt: 1,
+                minWidth: 240,
+                borderRadius: 2,
+                bgcolor: 'rgba(20,20,20,0.95)',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                '& .MuiMenuItem-root': {
+                  color: 'white',
+                  borderRadius: 1,
+                  mx: 0.5,
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+                },
+              },
             }}
           >
-            Analytics
-          </Button>
+            {/* Career Tools */}
+            <MenuItem onClick={() => { navigate('/tools/ats-checker'); handleToolsMenuClose(); }}>
+              <ListItemIcon><Assignment sx={{ color: '#818cf8' }} /></ListItemIcon>
+              <ListItemText primary="ATS Resume Checker" />
+            </MenuItem>
+            <MenuItem onClick={() => { navigate('/tools/resume-enhancer'); handleToolsMenuClose(); }}>
+              <ListItemIcon><AutoFixHigh sx={{ color: '#3b82f6' }} /></ListItemIcon>
+              <ListItemText primary="Resume Enhancer" />
+            </MenuItem>
+            <MenuItem onClick={() => { navigate('/tools/mock-qa'); handleToolsMenuClose(); }}>
+              <ListItemIcon><QuestionAnswer sx={{ color: '#f59e0b' }} /></ListItemIcon>
+              <ListItemText primary="Mock Q&A Generator" />
+            </MenuItem>
+            <MenuItem onClick={() => { navigate('/tools/salary-estimator'); handleToolsMenuClose(); }}>
+              <ListItemIcon><AttachMoney sx={{ color: '#10b981' }} /></ListItemIcon>
+              <ListItemText primary="Salary Estimator" />
+            </MenuItem>
+            <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+            <MenuItem onClick={() => { navigate('/tools'); handleToolsMenuClose(); }}>
+              <ListItemIcon><Build sx={{ color: 'rgba(255,255,255,0.5)' }} /></ListItemIcon>
+              <ListItemText primary="View All Tools" />
+            </MenuItem>
+          </Menu>
         </Box>
-
-        {/* Dark Mode Toggle */}
-        <Tooltip title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}>
-          <IconButton
-            onClick={toggleDark}
-            sx={{
-              ml: 1,
-              color: 'white',
-              backgroundColor: 'rgba(255,255,255,0.1)',
-              transition: 'all 0.3s ease',
-              '&:hover': { backgroundColor: 'rgba(255,255,255,0.2)', transform: 'rotate(20deg)' },
-            }}
-          >
-            {isDark ? <LightMode sx={{ fontSize: 20 }} /> : <DarkMode sx={{ fontSize: 20 }} />}
-          </IconButton>
-        </Tooltip>
 
         {/* User Menu */}
         <Box sx={{ ml: 1 }}>
@@ -272,10 +265,7 @@ const NavigationHeader: React.FC<ExtendedNavigationHeaderProps> = ({
               <Typography variant="body2" color="text.secondary">Interview Practice Session</Typography>
             </Box>
 
-            <MenuItem onClick={() => { navigate('/dashboard'); handleMenuClose(); }}>
-              <Dashboard sx={{ mr: 2, fontSize: 20 }} />
-              Dashboard
-            </MenuItem>
+
             <MenuItem onClick={() => { navigate('/settings'); handleMenuClose(); }}>
               <Settings sx={{ mr: 2, fontSize: 20 }} />
               Settings

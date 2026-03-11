@@ -1397,7 +1397,42 @@ JSON Response:
     def _fallback_comprehensive_evaluation(self, interview_data):
         """Fallback evaluation when AI is not available."""
         responses = interview_data.get('responses', [])
-        
+        questions_answered = interview_data.get('questionsAnswered', 0) or interview_data.get('questions_answered', 0)
+        questions_skipped = interview_data.get('questionsSkipped', 0) or interview_data.get('questions_skipped', 0)
+        total_questions = interview_data.get('totalQuestions', 5) or interview_data.get('total_questions', 5)
+
+        # All questions skipped = 0 score
+        if questions_answered == 0 and questions_skipped >= total_questions:
+            return {
+                "overall_score": 0,
+                "placement_likelihood": "Low",
+                "performance_summary": "No questions were answered. Skipping all questions results in a score of 0. Complete at least one answer to receive a meaningful evaluation.",
+                "strengths": [],
+                "development_areas": [
+                    "Answer interview questions—skipping all questions prevents assessment",
+                    "Prepare answers for common behavioral and role-based questions",
+                    "Use the STAR method when you do answer"
+                ],
+                "detailed_feedback": {
+                    "communication": {"score": 0, "feedback": "No verbal response provided."},
+                    "technical_knowledge": {"score": 0, "feedback": "No technical response provided."},
+                    "problem_solving": {"score": 0, "feedback": "No problem-solving response provided."},
+                    "confidence": {"score": 0, "feedback": "Cannot assess—no answers given."}
+                },
+                "skill_breakdown": {
+                    "verbal_communication": 0,
+                    "confidence_level": 0,
+                    "technical_competency": 0,
+                    "problem_solving": 0,
+                    "professionalism": 0
+                },
+                "recommendations": [
+                    "Answer each question or skip only when necessary",
+                    "Prepare 3–5 example stories before the interview",
+                    "Practice with a friend or mirror to build confidence"
+                ]
+            }
+
         # Calculate basic metrics
         if responses:
             # Analyze response quality
@@ -1524,17 +1559,26 @@ JSON Response:
     
     def _calculate_overall_score(self, report_data, report_analysis):
         """Calculate comprehensive overall score out of 100."""
+        total_questions = report_data.get('total_questions', 5) or report_data.get('totalQuestions', 5)
+        answered = report_data.get('questions_answered', 0) or report_data.get('questionsAnswered', 0)
+        skipped = report_data.get('questions_skipped', 0) or report_data.get('questionsSkipped', 0)
+
+        # All skipped = 0 score
+        if answered == 0 and (skipped >= total_questions or (skipped > 0 and not answered)):
+            return 0
+
         # Base score from answer quality (40% weight)
         response_scores = []
         for response in report_data.get('responses', []):
-            if 'analysis' in response:
+            if response.get('answer') == '[SKIPPED]':
+                response_scores.append(0)
+            elif 'analysis' in response:
                 response_scores.append(response['analysis'].get('score', 70))
-        
+            elif 'score' in response:
+                response_scores.append(response['score'])
         answer_score = sum(response_scores) / len(response_scores) if response_scores else 70
-        
+
         # Completion rate score (20% weight)
-        total_questions = report_data.get('total_questions', 5)
-        answered = report_data.get('questions_answered', 0)
         completion_score = (answered / total_questions) * 100 if total_questions > 0 else 0
         
         # Behavioral analysis score (25% weight)
@@ -2092,6 +2136,11 @@ class AnalysisResponse(BaseModel):
     emotions: dict
     session_id: str
 
+class FollowUpRequest(BaseModel):
+    original_question: str
+    user_response: str
+    score: Optional[int] = None
+
 class QuestionResponse(BaseModel):
     question: str
     category: str
@@ -2199,6 +2248,21 @@ def register_routes(app: FastAPI):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Question generation failed: {str(e)}")
     
+    @app.post("/generate/follow-up")
+    async def generate_follow_up(request: FollowUpRequest):
+        """Generate a follow-up question after a poor or absurd answer (e.g. 'I don't know')."""
+        try:
+            result = await gemini_client.generate_follow_up_question(
+                original_question=request.original_question,
+                user_response=request.user_response,
+                analysis_results={"score": request.score} if request.score is not None else None
+            )
+            follow_up = result.get("follow_up_question") or result.get("error") or "Can you elaborate on that with a specific example?"
+            return {"follow_up_question": follow_up if isinstance(follow_up, str) else str(follow_up)}
+        except Exception as e:
+            logger.warning(f"Follow-up generation failed: {e}")
+            return {"follow_up_question": "Can you give a more detailed answer with an example from your experience?"}
+    
     @app.post("/evaluate/answer")
     async def evaluate_answer(answer_text: str, question: str, session_id: str):
         """Evaluate an interview answer using Gemini AI"""
@@ -2253,8 +2317,26 @@ def register_routes(app: FastAPI):
     async def generate_comprehensive_evaluation(interview_data: dict):
         """Generate comprehensive interview evaluation based on full conversation history"""
         try:
+            q_answered = interview_data.get('questionsAnswered', 0) or interview_data.get('questions_answered', 0)
+            q_skipped = interview_data.get('questionsSkipped', 0) or interview_data.get('questions_skipped', 0)
+            q_total = interview_data.get('totalQuestions', 5) or interview_data.get('total_questions', 5)
+            if q_answered == 0 and q_skipped >= q_total:
+                zero_report = gemini_client._fallback_comprehensive_evaluation(interview_data)
+                return InterviewReportResponse(
+                    session_id=interview_data.get("sessionId", ""),
+                    overall_score=0,
+                    placement_likelihood=zero_report.get("placement_likelihood", "Low"),
+                    performance_summary=zero_report.get("performance_summary", "No questions were answered. Score is 0."),
+                    strengths=zero_report.get("strengths", []),
+                    development_areas=zero_report.get("development_areas", []),
+                    detailed_feedback=zero_report.get("detailed_feedback", {}),
+                    skill_breakdown=zero_report.get("skill_breakdown", {}),
+                    recommendations=zero_report.get("recommendations", []),
+                    generated_at=datetime.now().isoformat()
+                )
+
             logger.info(f"Generating comprehensive evaluation for session: {interview_data.get('sessionId', 'unknown')}")
-            
+
             # Generate comprehensive evaluation using full conversation history
             evaluation_data = await gemini_client.generate_comprehensive_evaluation(interview_data)
             

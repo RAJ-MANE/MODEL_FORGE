@@ -102,7 +102,14 @@ const InterviewReport: React.FC = () => {
       }
       const interviewData = JSON.parse(storedData);
       const reportData = await generateComprehensiveEvaluation(interviewData);
-      setReport(reportData);
+      // If user skipped all questions, score must be 0 regardless of API
+      const allSkipped = (interviewData.questionsAnswered === 0 && (interviewData.questionsSkipped || 0) >= (interviewData.totalQuestions || 5))
+        || (interviewData.totalScore === 0 && (interviewData.questionsSkipped || 0) > 0 && (interviewData.questionsAnswered || 0) === 0);
+      if (allSkipped) {
+        setReport({ ...reportData, overall_score: 0 });
+      } else {
+        setReport(reportData);
+      }
     } catch (err) {
       setError(`Failed to generate interview evaluation: ${err instanceof Error ? err.message : 'AI evaluation service is temporarily unavailable. Please try again later.'}`);
     } finally {

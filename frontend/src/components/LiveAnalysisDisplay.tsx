@@ -178,6 +178,11 @@ const LiveAnalysisDisplay: React.FC<LiveAnalysisDisplayProps> = ({
                       color={getProgressColor(facialData.eye_contact)}
                       sx={{ height: 8, borderRadius: 1 }}
                     />
+                    {facialData.eye_contact < 0.45 && (
+                      <Alert severity="warning" sx={{ mt: 1, py: 0.5, fontSize: '0.75rem' }}>
+                        Low eye contact — look at the camera to improve your score.
+                      </Alert>
+                    )}
                   </Box>
                 </Box>
 

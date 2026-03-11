@@ -3,13 +3,13 @@
 }
 
 .App-header {
-  background-color: #282c34;
+  background-color: #050505;
   padding: 20px;
   color: white;
 }
 
 .App-link {
-  color: #61dafb;
+  color: #60a5fa;
 }
 
 /* Interview Session Styles */
@@ -28,13 +28,14 @@
 
 .webcam-video {
   width: 100%;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 .question-card {
-  background: #f5f5f5;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
   padding: 20px;
   margin: 20px 0;
 }
@@ -44,16 +45,16 @@
 }
 
 .analysis-panel {
-  background: #ffffff;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
   padding: 15px;
   margin: 10px 0;
 }
 
 .confidence-meter {
   height: 8px;
-  background: #e0e0e0;
+  background: rgba(255, 255, 255, 0.06);
   border-radius: 4px;
   overflow: hidden;
   margin: 10px 0;
@@ -61,7 +62,7 @@
 
 .confidence-fill {
   height: 100%;
-  background: linear-gradient(90deg, #ff4444, #ffaa00, #44ff44);
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
   transition: width 0.3s ease;
 }
 
@@ -74,10 +75,11 @@
 }
 
 .stat-card {
-  background: white;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
   padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .progress-chart {
@@ -106,7 +108,7 @@
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translate3d(0, 100%, 0);
+    transform: translate3d(0, 60px, 0);
   }
 
   to {
@@ -140,25 +142,6 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
-}
-
 /* Loading shimmer effect */
 @keyframes shimmer {
   0% {
@@ -176,49 +159,7 @@ html {
   animation-iteration-count: infinite;
   animation-name: shimmer;
   animation-timing-function: linear;
-  background: linear-gradient(to right, #eeeeee 8%, #dddddd 18%, #eeeeee 33%);
+  background: linear-gradient(to right, #111 8%, #1a1a1a 18%, #111 33%);
   background-size: 800px 104px;
   position: relative;
-}
-
-/* ═══════════════════════════════════════════════════════
-   LIGHT MODE — applied when body has .light-mode class
-   Only affects non-home pages (interview, report, dashboard)
-   ═══════════════════════════════════════════════════════ */
-
-/* Smooth transition ONLY inside light-mode — never globally */
-body.light-mode .MuiBox-root,
-body.light-mode .MuiPaper-root,
-body.light-mode .MuiTypography-root {
-  transition: background-color 0.3s ease, color 0.3s ease !important;
-}
-
-body.light-mode {
-  background-color: #f0f4f8 !important;
-}
-
-/* MUI surfaces */
-body.light-mode .MuiPaper-root {
-  background-color: #ffffff !important;
-  color: #1a1a2e !important;
-  border-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-body.light-mode .MuiTypography-root:not([style*="background"]) {
-  color: #1a1a2e !important;
-}
-
-/* Glass cards (dark pages) → white cards in light mode */
-body.light-mode [style*="rgba(255,255,255,0.04)"],
-body.light-mode [style*="rgba(255, 255, 255, 0.04)"] {
-  background: rgba(255, 255, 255, 0.95) !important;
-  border-color: rgba(0, 0, 0, 0.1) !important;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08) !important;
-}
-
-/* Dark page backgrounds → light grey */
-body.light-mode div[style*="#060c14"],
-body.light-mode div[style*="#0a0f1e"],
-body.light-mode div[style*="0c0c14"] {
-  background: #f0f4f8 !important;
 }
