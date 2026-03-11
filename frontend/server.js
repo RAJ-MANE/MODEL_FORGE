@@ -15,7 +15,7 @@ app.get('/health', (req, res) => {
 });
 
 // For any other route, send back the React index.html file
-app.get('*', (req, res) => {
+app.get(/.*/, (req, res) => {
     res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
