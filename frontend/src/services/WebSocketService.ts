@@ -1,3 +1,4 @@
+import { AI_SERVICE_URL } from '../utils/config';
 class WebSocketService {
   private socket: WebSocket | null = null;
   private sessionId: string = '';
@@ -25,7 +26,7 @@ class WebSocketService {
   connect(sessionId: string): Promise<boolean> {
     this.sessionId = sessionId;
     // Derive WebSocket URL from the HTTP AI service URL (http→ws, https→wss)
-    let httpUrl = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    let httpUrl = AI_SERVICE_URL;
 
     // Robustness check: if protocol is missing, prepend https://
     if (!httpUrl.startsWith('http://') && !httpUrl.startsWith('https://')) {

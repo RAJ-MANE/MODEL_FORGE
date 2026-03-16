@@ -1,10 +1,11 @@
+import { AI_SERVICE_URL } from '../../utils/config';
 import React, { useState } from 'react';
 import { Box, Typography, Paper, TextField, Button, LinearProgress, Chip, IconButton } from '@mui/material';
 import { ArrowBack, CloudUpload, CheckCircle, Cancel, Warning } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
-const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+// AI_SERVICE_URL imported from config
 
 const ATSCheckerTool: React.FC = () => {
     const navigate = useNavigate();

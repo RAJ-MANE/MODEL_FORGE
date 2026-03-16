@@ -1,3 +1,4 @@
+import { AI_SERVICE_URL } from '../../utils/config';
 import React, { useState } from 'react';
 import {
     Box, Container, Typography, TextField, Button, Paper, IconButton,
@@ -7,7 +8,7 @@ import { ArrowBack, ContentCopy } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
-const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+// AI_SERVICE_URL imported from config
 
 const LANGUAGE_NAMES: Record<string, string> = {
     'hi-IN': 'Hindi', 'bn-IN': 'Bengali', 'gu-IN': 'Gujarati', 'kn-IN': 'Kannada',

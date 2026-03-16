@@ -12,6 +12,7 @@ import {
   IconButton,
   Stack,
 } from '@mui/material';
+import { AI_SERVICE_URL } from '../utils/config';
 import {
   Mic,
   MicOff,
@@ -100,7 +101,7 @@ const EnhancedInterviewSession: React.FC = () => {
     // Skip Sarvam TTS for English mode — avatar handles speech
     if (avatarSpeechEnabled) return;
     try {
-      const aiServiceUrl = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+      const aiServiceUrl = AI_SERVICE_URL;
       const resp = await fetch(`${aiServiceUrl}/api/tools/speak-question`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -627,15 +628,7 @@ const EnhancedInterviewSession: React.FC = () => {
         resumeExperienceCount: requestData.resume_data?.experience?.length || 0
       });
 
-      const getBaseUrl = (url: string) => {
-        if (!url) return 'http://localhost:8001';
-        if (!url.startsWith('http://') && !url.startsWith('https://')) {
-          return `https://${url}`;
-        }
-        return url;
-      };
-
-      const aiServiceUrlEnv = getBaseUrl(process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001');
+      const aiServiceUrlEnv = AI_SERVICE_URL;
 
       const response = await fetch(`${aiServiceUrlEnv}/generate/question`, {
         method: 'POST',
@@ -871,7 +864,7 @@ const EnhancedInterviewSession: React.FC = () => {
         formData.append('question_id', currentQuestionNumber.toString());
 
         console.log('🎵 Sending audio for voice analysis...');
-        const aiServiceUrl = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+        const aiServiceUrl = AI_SERVICE_URL;
         const voiceResponse = await fetch(`${aiServiceUrl}/analyze/voice`, {
           method: 'POST',
           body: formData
@@ -905,7 +898,7 @@ const EnhancedInterviewSession: React.FC = () => {
   };
 
   const requestFollowUpQuestion = async (originalQuestion: string, userResponse: string): Promise<string | null> => {
-    const aiServiceUrl = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const aiServiceUrl = AI_SERVICE_URL;
     try {
       const res = await fetch(`${aiServiceUrl}/generate/follow-up`, {
         method: 'POST',
@@ -957,7 +950,7 @@ const EnhancedInterviewSession: React.FC = () => {
   const evaluateResponse = async (transcript: string, responseTime: number, voiceData: any) => {
     try {
       // Enhanced evaluation with AI service including voice data
-      const aiServiceUrl = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+      const aiServiceUrl = AI_SERVICE_URL;
       const response = await fetch(`${aiServiceUrl}/evaluate/comprehensive`, {
         method: 'POST',
         headers: {
